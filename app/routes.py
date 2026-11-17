@@ -19539,8 +19539,10 @@ def savePoseReview():
                 detection.image.camera.cameragroup.scale_factor if detection.image.camera.cameragroup else None,
                 image_width, image_height,
             )
-            detection.shoulder_height = shoulder
-            detection.back_length = back
+            if shoulder is not None:
+                detection.shoulder_height = shoulder
+            if back is not None:
+                detection.back_length = back
         updated[int(det_id)] = {
             'shoulder_height': detection.shoulder_height,
             'back_length': detection.back_length,

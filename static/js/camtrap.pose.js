@@ -6,6 +6,10 @@ var poseMarkers = null
 var poseContextBound = false
 var poseModesBound = false
 var poseEditMode = false
+var poseEditSaved = false
+var poseSaveSeq = 0
+var poseEditSnapshot = null
+var poseMenuOpen = false
 var poseDeleteMode = false
 var poseDeleteSaved = false
 var poseHotkeyNames = []
@@ -46,8 +50,8 @@ function buildPoseReviewPanel(res) {
     mode.className = 'form-control'
     mode.style.marginTop = '3px'
     mode.style.marginBottom = '3px'
-    var poseOption = new Option('Pose keypoints', 'pose')
-    var speciesOption = new Option('Species', 'species')
+    var poseOption = new Option('Pose Keypoints', 'pose')
+    var speciesOption = new Option('Species Labelling', 'species')
     mode.add(poseOption)
     mode.add(speciesOption)
     mode.value = poseReviewMode
@@ -58,44 +62,54 @@ function buildPoseReviewPanel(res) {
     })
     divBtns.appendChild(mode)
 
-    var flank = document.createElement('select')
-    flank.id = 'poseFlankSelector'
-    flank.className = 'form-control'
-    flank.style.marginTop = '3px'
-    flank.style.marginBottom = '3px'
-    ;['Left', 'Right', 'Ambiguous'].forEach(function(name) {
-        flank.add(new Option(name, name))
+    var flankLabel = document.createElement('div')
+    flankLabel.innerHTML = 'Flank Selection'
+    flankLabel.style.marginTop = '8px'
+    flankLabel.style.borderTop = '1px solid #3c4a59'
+    flankLabel.style.paddingTop = '6px'
+    flankLabel.style.fontSize = '100%'
+    flankLabel.style.fontWeight = '600'
+    divBtns.appendChild(flankLabel)
+
+    var flankRow = document.createElement('div')
+    flankRow.style.margin = '4px 0 8px 0'
+    ;['Left', 'Right'].forEach(function(name) {
+        var button = document.createElement('button')
+        button.type = 'button'
+        button.id = 'poseFlank' + name
+        button.innerHTML = name
+        button.className = 'btn btn-sm'
+        button.style.width = '48%'
+        button.style.marginRight = name === 'Left' ? '4%' : '0'
+        button.style.background = '#ffffff'
+        button.style.color = '#333333'
+        button.style.border = '1px solid #cccccc'
+        button.addEventListener('click', function() { poseChooseFlank(name) })
+        flankRow.appendChild(button)
     })
-    flank.addEventListener('change', function() {
-        var detection = poseSelectedDetection()
-        if (!detection) return
-        detection.flank = this.value
-        detection.poseDirty = true
-    })
-    divBtns.appendChild(flank)
+    divBtns.appendChild(flankRow)
 
     var measurements = document.createElement('div')
     measurements.id = 'poseMeasurements'
     measurements.style.margin = '6px 0'
-    measurements.style.fontSize = '140%'
+    measurements.style.fontSize = '115%'
     measurements.style.fontWeight = '600'
     measurements.style.lineHeight = '1.4'
-    measurements.innerHTML = 'Shoulder height: -<br>Back length: -'
+    measurements.innerHTML = 'Shoulder Height: -<br>Back Length: -'
     divBtns.appendChild(measurements)
 
     var unusable = document.createElement('button')
+    unusable.id = 'poseUnusableButton'
     unusable.className = 'btn btn-danger btn-block btn-sm'
     unusable.style.marginTop = '3px'
-    unusable.innerHTML = 'Mark unusable'
-    unusable.addEventListener('click', function() {
+    unusable.innerHTML = 'Mark Unusable'
+    unusable.addEventListener('click', function(event) {
+        event.preventDefault()
+        event.stopPropagation()
         var detection = poseSelectedDetection()
         if (!detection) return
-        detection.unusable = true
-        detection.keypoints = []
-        detection.shoulder_height = 0
-        detection.back_length = 0
-        detection.poseDirty = true
-        poseRefresh()
+        if (detection.unusable) poseUndoUnusable(detection)
+        else $('#modalPoseUnusable').modal('show')
     })
     divBtns.appendChild(unusable)
 
@@ -116,7 +130,10 @@ function buildPoseReviewPanel(res) {
             else if (i === labs.length - 3) labelName += ' (Space)'
             else if (i === labs.length - 1) labelName += ' (-)'
             else labelName += ' (' + String.fromCharCode(i + 55) + ')'
-            button.className = 'btn btn-block btn-sm ' + (names[i] === 'Skip' ? 'btn-danger' : 'btn-primary')
+            var buttonClass = 'btn-primary'
+            if (names[i] === 'Skip' || names[i] === 'Wrong' || names[i] === 'Mask Area' || names[i] === 'Remove False Detections') buttonClass = 'btn-danger'
+            else if (i >= 10 && i !== labs.length - 3) buttonClass = 'btn-info'
+            button.className = 'btn btn-block btn-sm ' + buttonClass
             button.style.marginTop = '3px'
             button.innerHTML = labelName
             button.setAttribute('data-label', names[i])
@@ -130,7 +147,7 @@ function buildPoseReviewPanel(res) {
         var speciesSubmit = document.createElement('button')
         speciesSubmit.className = 'btn btn-primary btn-block btn-sm'
         speciesSubmit.style.marginTop = '3px'
-        speciesSubmit.innerHTML = 'Submit cluster'
+        speciesSubmit.innerHTML = 'Submit Cluster'
         speciesSubmit.addEventListener('click', function() { poseSave(true) })
         speciesDiv.appendChild(speciesSubmit)
     }
@@ -140,15 +157,15 @@ function buildPoseReviewPanel(res) {
     submit.id = 'poseSubmitCluster'
     submit.className = 'btn btn-primary btn-block btn-sm'
     submit.style.marginTop = '3px'
-    submit.innerHTML = 'Submit cluster'
+    submit.innerHTML = 'Submit Cluster'
     submit.addEventListener('click', function() { poseSave(true) })
     divBtns.appendChild(submit)
 
     var skip = document.createElement('button')
     skip.id = 'poseSkipCluster'
-    skip.className = 'btn btn-info btn-block btn-sm'
+    skip.className = 'btn btn-danger btn-block btn-sm'
     skip.style.marginTop = '3px'
-    skip.innerHTML = 'Skip'
+    skip.innerHTML = 'Skip (0)'
     skip.addEventListener('click', poseSkipCluster)
     divBtns.appendChild(skip)
 
@@ -167,11 +184,12 @@ function poseRefresh() {
     addDetections('map1')
 }
 
-function poseCm(value) {
+function poseMeasureText(value) {
     if (value == null || value === '') return '-'
     var number = Number(value)
     if (isNaN(number)) return '-'
-    return number.toFixed(2)
+    if (number === 0) return 'Insufficient keypoints'
+    return number.toFixed(2) + ' cm'
 }
 
 function poseHotkey(key) {
@@ -189,14 +207,102 @@ function poseCurrentImage() {
     return clusters['map1'][clusterIndex['map1']].images[imageIndex['map1']]
 }
 
+function poseCanonicalFlank(value) {
+    var name = (value || '').toString().toLowerCase()
+    if (name === 'l' || name === 'left') return 'Left'
+    if (name === 'r' || name === 'right') return 'Right'
+    return 'None'
+}
+
+function poseCommittedFlank(detection) {
+    if (!detection._committedFlank) detection._committedFlank = poseCanonicalFlank(detection.flank)
+    return detection._committedFlank
+}
+
+function poseStyleFlank(detection) {
+    var chosen = detection ? poseCanonicalFlank(detection.flank) : 'None'
+    ;['Left', 'Right'].forEach(function(name) {
+        var button = document.getElementById('poseFlank' + name)
+        if (!button) return
+        var selected = chosen === name
+        button.style.background = selected ? '#DF691A' : '#ffffff'
+        button.style.color = selected ? '#ffffff' : '#333333'
+        button.style.border = '1px solid ' + (selected ? '#DF691A' : '#cccccc')
+    })
+}
+
+function poseConfirmUnusable() {
+    var detection = poseSelectedDetection()
+    if (!detection || detection.unusable) return
+    detection.unusable = true
+    detection.keypoints = []
+    detection.shoulder_height = 0
+    detection.back_length = 0
+    detection._measuresPending = false
+    detection._pointsPending = false
+    detection._flankPending = false
+    detection.poseDirty = true
+    poseShowMeasurements(detection)
+    poseRefresh()
+    poseSave(false)
+}
+
+function poseUndoUnusable(detection) {
+    detection.unusable = false
+    detection._measuresPending = false
+    detection._recalculating = false
+    poseShowMeasurements(detection)
+    poseRefresh()
+}
+
+function poseChooseFlank(name) {
+    var detection = poseSelectedDetection()
+    if (!detection || detection.unusable) return
+    var committed = poseCommittedFlank(detection)
+    detection.flank = name
+    detection._flankPending = name !== committed
+    detection.poseDirty = detection._flankPending || !!detection._pointsPending
+    detection._measuresPending = detection.poseDirty
+    poseStyleFlank(detection)
+    poseShowMeasurements(detection)
+    if (detection.poseDirty) poseSave(false)
+}
+
+function poseMarkPointsPending(detection) {
+    detection._pointsPending = true
+    detection._measuresPending = true
+    detection.poseDirty = true
+    if (poseSelectedDetection() === detection) poseShowMeasurements(detection)
+}
+
 function poseShowMeasurements(detection) {
     var node = document.getElementById('poseMeasurements')
     if (!node) return
+    poseStyleFlank(detection)
+    var unusableButton = document.getElementById('poseUnusableButton')
+    if (unusableButton) unusableButton.innerHTML = detection && detection.unusable ? 'Undo Unusable' : 'Mark Unusable'
     if (!detection) {
-        node.innerHTML = 'Shoulder height: -<br>Back length: -'
+        node.innerHTML = 'Shoulder Height: -<br>Back Length: -'
         return
     }
-    node.innerHTML = 'Shoulder height: ' + poseCm(detection.shoulder_height) + ' cm<br>Back length: ' + poseCm(detection.back_length) + ' cm'
+    if (detection.unusable) {
+        node.innerHTML = 'Shoulder Height: Unusable<br>Back Length: Unusable'
+        return
+    }
+    if (detection._recalculating) {
+        node.innerHTML = 'Shoulder Height: Recalculating...<br>Back Length: Recalculating...'
+        return
+    }
+    if (detection._measuresPending) {
+        node.innerHTML = 'Shoulder Height: Recalculation Required<br>Back Length: Recalculation Required'
+        return
+    }
+    node.innerHTML = 'Shoulder Height: ' + poseMeasureText(detection.shoulder_height) + '<br>Back Length: ' + poseMeasureText(detection.back_length)
+}
+
+function poseClearSelection() {
+    poseSelectedId = null
+    poseShowMeasurements(null)
 }
 
 function poseSelectedDetection() {
@@ -217,19 +323,18 @@ function poseAfterDetections(mapID) {
     var image = poseCurrentImage()
     if (!image) return
     for (var leafletID in drawnItems[mapID]._layers) {
-        drawnItems[mapID]._layers[leafletID].on('click', function(id) {
+        var layer = drawnItems[mapID]._layers[leafletID]
+        var detectionForBox = null
+        for (var d = 0; d < image.detections.length; d++) {
+            if (String(image.detections[d].id) === String(dbDetIds[mapID][leafletID])) detectionForBox = image.detections[d]
+        }
+        if (detectionForBox && detectionForBox.unusable) {
+            layer.setStyle({color: '#DF691A', weight: 4, dashArray: '6 4'})
+        }
+        layer.on('click', function(id) {
             return function() {
                 poseSelectedId = id
-                var detection = poseSelectedDetection()
-                var flank = document.getElementById('poseFlankSelector')
-                if (detection && flank) {
-                    var value = detection.flank || 'Ambiguous'
-                    if (value.toLowerCase() === 'left') value = 'Left'
-                    else if (value.toLowerCase() === 'right') value = 'Right'
-                    else if (value.toLowerCase() === 'ambiguous' || value.toLowerCase() === 'none') value = 'Ambiguous'
-                    flank.value = value
-                }
-                poseShowMeasurements(detection)
+                poseShowMeasurements(poseSelectedDetection())
             }
         }(dbDetIds[mapID][leafletID]))
     }
@@ -250,11 +355,61 @@ function poseAfterDetections(mapID) {
     }
 }
 
+function poseSnapshotEdit() {
+    poseEditSnapshot = {}
+    var image = poseCurrentImage()
+    if (!image) return
+    for (var i = 0; i < image.detections.length; i++) {
+        var detection = image.detections[i]
+        detection._pointsPendingAtEditStart = !!detection._pointsPending
+        poseEditSnapshot[detection.id] = (detection.keypoints || []).map(function(point) {
+            return {name: point.name, x: point.x, y: point.y, score: point.score, source: point.source}
+        })
+    }
+}
+
+function poseRestoreEdit() {
+    var image = poseCurrentImage()
+    if (!image || !poseEditSnapshot) return
+    for (var i = 0; i < image.detections.length; i++) {
+        var saved = poseEditSnapshot[image.detections[i].id]
+        if (saved) image.detections[i].keypoints = saved
+        image.detections[i]._pointsPending = !!image.detections[i]._pointsPendingAtEditStart
+        image.detections[i]._measuresPending = !!image.detections[i]._flankPending || !!image.detections[i]._pointsPending
+    }
+    poseEditSnapshot = null
+    poseRefresh()
+    poseShowMeasurements(poseSelectedDetection())
+}
+
+function poseCommitEdit() {
+    var image = poseCurrentImage()
+    if (!image || !poseEditSnapshot) return
+    for (var i = 0; i < image.detections.length; i++) {
+        var detection = image.detections[i]
+        var saved = poseEditSnapshot[detection.id] || []
+        if (JSON.stringify(saved) !== JSON.stringify(detection.keypoints || [])) poseMarkPointsPending(detection)
+    }
+    poseEditSnapshot = null
+    poseSave(false)
+}
+
 function poseBindModes(mapID) {
     if (poseModesBound) return
     poseModesBound = true
-    map[mapID].on('draw:editstart', function() { poseEditMode = true })
-    map[mapID].on('draw:editstop', function() { poseEditMode = false })
+    map[mapID].on('draw:editstart', function() {
+        poseEditMode = true
+        poseEditSaved = false
+        poseSnapshotEdit()
+        setTimeout(poseCornerCursors, 0)
+    })
+    map[mapID].on('draw:edited', function() { poseEditSaved = true })
+    map[mapID].on('draw:editstop', function() {
+        poseEditMode = false
+        if (poseEditSaved) poseCommitEdit()
+        else poseRestoreEdit()
+        poseEditSaved = false
+    })
     map[mapID].on('draw:deletestart', function() { poseDeleteMode = true })
     map[mapID].on('draw:deleted', function() {
         poseDeleteSaved = true
@@ -288,12 +443,13 @@ function poseDrawSkeleton(mapID, points) {
             }
         })
         if (nearest) edges.push(['shoulder_top', nearest])
+        if (byName.tail) edges.push(['shoulder_top', 'tail'])
     }
     edges.forEach(function(edge) {
         if (!byName[edge[0]] || !byName[edge[1]]) return
         poseMarkers.addLayer(L.polyline(
             [posePointLatLng(mapID, byName[edge[0]]), posePointLatLng(mapID, byName[edge[1]])],
-            {color: '#F2C14E', weight: 2, interactive: false}
+            {color: '#A9C8F5', weight: 2, interactive: false}
         ))
     })
 }
@@ -315,9 +471,9 @@ function poseUpdateLines(mapID) {
 function poseAddMarker(mapID, detection, point) {
     var marker = L.circleMarker(posePointLatLng(mapID, point), {
         radius: 6,
-        color: '#7A3E00',
+        color: '#0B3F86',
         weight: 1,
-        fillColor: '#DF691A',
+        fillColor: '#1A69DF',
         fillOpacity: 1
     })
     marker.bindTooltip(point.name, {permanent: false, direction: 'top'})
@@ -333,10 +489,14 @@ function poseAddMarker(mapID, detection, point) {
             map[mapID].off('mouseup', up)
             map[mapID].dragging.enable()
             var latlng = ev.latlng
-            point.x = Math.max(0, Math.min(1, latlng.lng / mapWidth[mapID]))
-            point.y = Math.max(0, Math.min(1, latlng.lat / mapHeight[mapID]))
-            if (point.source !== 'user') point.source = 'user_edited'
-            detection.poseDirty = true
+            var nextX = Math.max(0, Math.min(1, latlng.lng / mapWidth[mapID]))
+            var nextY = Math.max(0, Math.min(1, latlng.lat / mapHeight[mapID]))
+            if (Math.abs(nextX - point.x) > 1e-4 || Math.abs(nextY - point.y) > 1e-4) {
+                point.x = nextX
+                point.y = nextY
+                if (point.source !== 'user') point.source = 'user_edited'
+                poseMarkPointsPending(detection)
+            }
             marker.setLatLng(posePointLatLng(mapID, point))
             poseUpdateLines(mapID)
         }
@@ -346,7 +506,7 @@ function poseAddMarker(mapID, detection, point) {
     marker.on('click', function() {
         if (!poseDeleteMode) return
         point.pendingDelete = !point.pendingDelete
-        marker.setStyle({fillColor: point.pendingDelete ? '#888888' : '#DF691A', fillOpacity: point.pendingDelete ? 0.35 : 1})
+        marker.setStyle({fillColor: point.pendingDelete ? '#888888' : '#1A69DF', fillOpacity: point.pendingDelete ? 0.35 : 1})
     })
     poseMarkers.addLayer(marker)
 }
@@ -361,11 +521,14 @@ function poseCommitDeletes() {
         var before = (detection.keypoints || []).length
         detection.keypoints = (detection.keypoints || []).filter(function(point) { return !point.pendingDelete })
         if (detection.keypoints.length !== before) {
-            detection.poseDirty = true
+            poseMarkPointsPending(detection)
             changed = true
         }
     }
-    if (changed) poseRefresh()
+    if (changed) {
+        poseRefresh()
+        poseSave(false)
+    }
 }
 
 function poseClearDeleteMarks() {
@@ -375,7 +538,7 @@ function poseClearDeleteMarks() {
         (image.detections[i].keypoints || []).forEach(function(point) { point.pendingDelete = false })
     }
     poseMarkers.eachLayer(function(layer) {
-        if (layer.posePoint) layer.setStyle({fillColor: '#DF691A', fillOpacity: 1})
+        if (layer.posePoint) layer.setStyle({fillColor: '#1A69DF', fillOpacity: 1})
     })
 }
 
@@ -397,25 +560,49 @@ function poseMapContext(event) {
     L.DomEvent.preventDefault(event)
     var present = {}
     ;(detection.keypoints || []).forEach(function(point) { present[point.name] = true })
+    poseMenuOpen = true
     map['map1'].contextmenu.removeAllItems()
-    POSE_POINT_NAMES.forEach(function(name) {
-        if (present[name]) return
+    var missing = POSE_POINT_NAMES.filter(function(name) { return !present[name] })
+    if (missing.length === 0) {
         map['map1'].contextmenu.addItem({
-            text: name,
-            callback: function(chosen, det, px, py) {
-                return function() { poseCreatePoint(det, chosen, px, py) }
-            }(name, detection, x, y)
+            text: 'All keypoints are present',
+            callback: function() {}
+        })
+    } else {
+        missing.forEach(function(name) {
+            map['map1'].contextmenu.addItem({
+                text: name,
+                callback: function(chosen, det, px, py) {
+                    return function() { poseCreatePoint(det, chosen, px, py) }
+                }(name, detection, x, y)
+            })
+        })
+    }
+    map['map1'].contextmenu.showAt(event.containerPoint)
+}
+
+function poseCornerCursors() {
+    if (!drawnItems['map1']) return
+    drawnItems['map1'].eachLayer(function(layer) {
+        if (!layer.editing || !layer.editing._resizeMarkers || !layer.getBounds) return
+        var bounds = layer.getBounds()
+        layer.editing._resizeMarkers.forEach(function(marker) {
+            if (!marker._icon || !marker.getLatLng) return
+            var latlng = marker.getLatLng()
+            var north = Math.abs(latlng.lat - bounds.getNorth()) <= Math.abs(latlng.lat - bounds.getSouth())
+            var west = Math.abs(latlng.lng - bounds.getWest()) <= Math.abs(latlng.lng - bounds.getEast())
+            marker._icon.style.cursor = (north === west) ? 'nwse-resize' : 'nesw-resize'
         })
     })
-    map['map1'].contextmenu.showAt(event.containerPoint)
 }
 
 function poseCreatePoint(detection, name, x, y) {
     if (!detection.keypoints) detection.keypoints = []
     detection.keypoints.push({name: name, x: x, y: y, score: null, source: 'user'})
-    detection.poseDirty = true
+    poseMarkPointsPending(detection)
     poseSelectedId = detection.id
     poseRefresh()
+    poseSave(false)
 }
 
 function poseSetSpecies(label) {
@@ -464,35 +651,53 @@ function poseSave(submitCluster) {
         detection.poseDirty = false
     }
     if (Object.keys(edits).length === 0 && !submitCluster) return
+    var seq = ++poseSaveSeq
+    for (var id in edits) {
+        for (var m = 0; m < image.detections.length; m++) {
+            if (String(image.detections[m].id) !== String(id)) continue
+            if (image.detections[m].unusable) continue
+            image.detections[m]._recalculating = true
+            image.detections[m]._saveSeq = seq
+        }
+    }
+    poseShowMeasurements(poseSelectedDetection())
     var formData = new FormData()
     formData.append('detections', JSON.stringify(edits))
-    formData.append('image_width', mapWidth['map1'])
-    formData.append('image_height', mapHeight['map1'])
+    formData.append('image_width', imagePixelWidth['map1'])
+    formData.append('image_height', imagePixelHeight['map1'])
     formData.append('cluster_id', JSON.stringify(cluster.id))
     formData.append('submit_cluster', submitCluster ? 'true' : 'false')
     var xhttp = new XMLHttpRequest()
-    xhttp.onreadystatechange = function() {
-        if (this.readyState == 4 && this.status == 278) {
-            window.location.replace(JSON.parse(this.responseText)['redirect'])
-        } else if (this.readyState == 4 && this.status == 200) {
-            var reply = JSON.parse(this.responseText)
-            var imageNow = poseCurrentImage()
-            if (reply.measurements && imageNow) {
-                for (var n = 0; n < imageNow.detections.length; n++) {
-                    var fresh = reply.measurements[imageNow.detections[n].id]
-                    if (!fresh) fresh = reply.measurements[String(imageNow.detections[n].id)]
-                    if (!fresh) continue
-                    imageNow.detections[n].shoulder_height = fresh.shoulder_height
-                    imageNow.detections[n].back_length = fresh.back_length
+    xhttp.onreadystatechange = function(savedSeq) {
+        return function() {
+            if (this.readyState == 4 && this.status == 278) {
+                window.location.replace(JSON.parse(this.responseText)['redirect'])
+            } else if (this.readyState == 4 && this.status == 200) {
+                var reply = JSON.parse(this.responseText)
+                var imageNow = poseCurrentImage()
+                if (reply.measurements && imageNow) {
+                    for (var n = 0; n < imageNow.detections.length; n++) {
+                        if (imageNow.detections[n]._saveSeq !== savedSeq) continue
+                        var fresh = reply.measurements[imageNow.detections[n].id]
+                        if (!fresh) fresh = reply.measurements[String(imageNow.detections[n].id)]
+                        imageNow.detections[n]._recalculating = false
+                        if (!fresh) continue
+                        imageNow.detections[n].shoulder_height = fresh.shoulder_height
+                        imageNow.detections[n].back_length = fresh.back_length
+                        imageNow.detections[n]._committedFlank = poseCanonicalFlank(imageNow.detections[n].flank)
+                        imageNow.detections[n]._flankPending = false
+                        imageNow.detections[n]._pointsPending = false
+                        imageNow.detections[n]._measuresPending = false
+                    }
+                    poseShowMeasurements(poseSelectedDetection())
                 }
-                poseShowMeasurements(poseSelectedDetection())
-            }
-            if (submitCluster) {
-                if (reply.progress) updateProgBar(reply.progress)
-                nextCluster('map1')
+                if (submitCluster) {
+                    if (reply.progress) updateProgBar(reply.progress)
+                    nextCluster('map1')
+                }
             }
         }
-    }
+    }(seq)
     xhttp.open('POST', '/savePoseReview')
     xhttp.send(formData)
 }

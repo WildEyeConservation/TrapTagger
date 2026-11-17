@@ -755,6 +755,10 @@ function taggingMapPrep(mapID = 'map1') {
     });
 
     map[mapID].on('contextmenu.select', function (e) {
+        if (typeof poseMenuOpen !== 'undefined' && poseMenuOpen) {
+            poseMenuOpen = false
+            return
+        }
         if (!maskMode) {
             if (targetUpdated) {
                 if (e.el.textContent == 'EDIT') {
@@ -1152,10 +1156,12 @@ function updateTargetRect (e) {
 
 document.addEventListener('click', function(event){
     /** Un-highlights the selected bounding box */
-    if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
-        if (event.target.classList.contains('leaflet-interactive')==false&&event.target.classList.contains('bounding-btn')==false&&event.target.classList.contains('select-all-bounding-btn')==false){
+    if (event.target.closest && (event.target.closest('#divBtns') || event.target.closest('#modalPoseUnusable'))) return
+    if (drawControl && !drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
+        if (event.target.classList && event.target.classList.contains('leaflet-interactive')==false&&event.target.classList.contains('bounding-btn')==false&&event.target.classList.contains('select-all-bounding-btn')==false){
             if (!(event.target.classList.contains('label-btn')&&taggingLevel.includes('-2')&&document.getElementById('annotationLevelSelector').value == '-1')) {
-                clearBoundingSelect()  
+                clearBoundingSelect()
+                if (typeof poseClearSelection === 'function' && typeof isPoseReview === 'function' && isPoseReview()) poseClearSelection()
             }
         }   
     }   

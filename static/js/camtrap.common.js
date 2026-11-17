@@ -131,6 +131,8 @@ var activeImage = {"map1": null}
 var fullRes = {"map1": false}
 var mapWidth = {"map1": null}
 var mapHeight = {"map1": null}
+var imagePixelWidth = {"map1": null}
+var imagePixelHeight = {"map1": null}
 var mapReady = {"map1": null}
 var currentImage = {"map1": null}
 var addedDetections = {"map1": false}
@@ -446,6 +448,10 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
 
                         if (isReviewing) {
                             updateDetInfo(wrapDet, mapID)
+                        }
+                        if (typeof isPoseReview === 'function' && isPoseReview()) {
+                            poseSelectedId = wrapDet.id
+                            poseShowMeasurements(wrapDet)
                         }
                     }
                     
@@ -3021,6 +3027,8 @@ function prepMap(mapID = 'map1') {
                     return function() {
                         w = this.width
                         h = this.height
+                        imagePixelWidth[wrapMapID] = w
+                        imagePixelHeight[wrapMapID] = h
                     
                         if (w>h) {
                             if (mapID=='known'){
@@ -3221,7 +3229,9 @@ function updateMap(mapID = 'map1', url){
             img.onload = function(wrapMapID){
                 return function() {
                     w = this.width
-                    h = this.height              
+                    h = this.height
+                    imagePixelWidth[wrapMapID] = w
+                    imagePixelHeight[wrapMapID] = h
 
                     document.getElementById(mapDivs[wrapMapID]).style.height = 'calc(50vw *'+(h/w)+')'
                     document.getElementById(mapDivs[wrapMapID]).style.width = '50vw'  

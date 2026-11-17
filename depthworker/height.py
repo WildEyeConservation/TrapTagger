@@ -241,9 +241,11 @@ def measurements_from_stored_points(points, flank, distance_m, scale_factor, wid
         width = float(width)
         height = float(height)
     except (TypeError, ValueError):
-        return 0, 0
+        return None, None
+    width = abs(width)
+    height = abs(height)
     if distance_m <= 0 or scale_factor <= 0 or width <= 0 or height <= 0:
-        return 0, 0
+        return None, None
 
     side = choose_leg_side(flank, keypoints)
     if side is not None:
