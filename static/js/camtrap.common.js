@@ -4086,6 +4086,9 @@ document.onkeyup = function(event){
     } else if (isTagging||isReviewing) {
         // console.log(event)
         if (((typeof modalNote == 'undefined') || (!modalNote.is(':visible'))) && !isNoteActive && !isDateActive) {
+            if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'species' && typeof poseHotkey === 'function') {
+                if (poseHotkey(event.key.toLowerCase())) return
+            }
             switch (event.key.toLowerCase()){
                 case ('0'):assignLabel(hotkeys[0])
                     break;

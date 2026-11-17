@@ -19472,14 +19472,14 @@ def savePoseReview():
 
     from depthworker.height import measurements_from_stored_points
 
-    edits = ast.literal_eval(request.form['detections'])
     try:
+        edits = json.loads(request.form['detections'])
         image_width = float(request.form['image_width'])
         image_height = float(request.form['image_height'])
-    except (TypeError, ValueError):
+        cluster_id = int(json.loads(request.form['cluster_id']))
+    except (TypeError, ValueError, KeyError):
         return json.dumps({'status': 'error'})
     submit_cluster = request.form.get('submit_cluster') == 'true'
-    cluster_id = int(ast.literal_eval(request.form['cluster_id']))
 
     updated = {}
     for det_id, edit in edits.items():

@@ -4,6 +4,24 @@ var poseReviewMode = 'pose'
 var poseSelectedId = null
 var poseMarkers = null
 var poseContextBound = false
+var poseModesBound = false
+var poseEditMode = false
+var poseDeleteMode = false
+var poseDeleteSaved = false
+var poseHotkeyNames = []
+var POSE_EDGES = [
+    ['left_eye', 'nose'], ['right_eye', 'nose'], ['nose', 'neck'], ['neck', 'tail'],
+    ['neck', 'left_shoulder'], ['left_shoulder', 'left_elbow'], ['left_elbow', 'left_front_paw'],
+    ['neck', 'right_shoulder'], ['right_shoulder', 'right_elbow'], ['right_elbow', 'right_front_paw'],
+    ['tail', 'left_hip'], ['left_hip', 'left_knee'], ['left_knee', 'left_back_paw'],
+    ['tail', 'right_hip'], ['right_hip', 'right_knee'], ['right_knee', 'right_back_paw']
+]
+var POSE_KEY_INDEX = {
+    '0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
+    'a': 10, 'b': 11, 'c': 12, 'd': 13, 'e': 14, 'f': 15, 'g': 16, 'h': 17, 'i': 18, 'j': 19,
+    'k': 20, 'l': 21, 'm': 22, 'n': 23, 'o': 24, 'p': 25, 'q': 26, 'r': 27, 's': 28, 't': 29,
+    'u': 30, 'v': 31, 'w': 32, 'x': 33, 'y': 34, 'z': 35, ' ': 36, '-': 38
+}
 var POSE_POINT_NAMES = [
     'left_eye', 'right_eye', 'nose', 'neck', 'tail',
     'left_shoulder', 'left_elbow', 'left_front_paw',
@@ -58,7 +76,10 @@ function buildPoseReviewPanel(res) {
 
     var measurements = document.createElement('div')
     measurements.id = 'poseMeasurements'
-    measurements.style.margin = '4px 0'
+    measurements.style.margin = '6px 0'
+    measurements.style.fontSize = '140%'
+    measurements.style.fontWeight = '600'
+    measurements.style.lineHeight = '1.4'
     measurements.innerHTML = 'Shoulder height: -<br>Back length: -'
     divBtns.appendChild(measurements)
 
@@ -81,23 +102,42 @@ function buildPoseReviewPanel(res) {
     var speciesDiv = document.createElement('div')
     speciesDiv.id = 'poseSpeciesButtons'
     speciesDiv.style.display = 'none'
+    poseHotkeyNames = []
     if (res && res[0]) {
-        for (var i = 0; i < res[0].length; i++) {
-            if (!res[1][i] || res[1][i] === 'N' || res[1][i] === 'Skip') continue
+        var labs = res[0]
+        var names = res[1]
+        for (var i = 0; i < labs.length; i++) {
+            hotkeys[i] = labs[i]
+            poseHotkeyNames[i] = names[i]
+            if (!names[i] || names[i] === 'N' || labs[i] == EMPTY_HOTKEY_ID) continue
             var button = document.createElement('button')
-            button.className = 'btn btn-primary btn-block btn-sm'
+            var labelName = names[i]
+            if (i < 10) labelName += ' (' + String.fromCharCode(i + 48) + ')'
+            else if (i === labs.length - 3) labelName += ' (Space)'
+            else if (i === labs.length - 1) labelName += ' (-)'
+            else labelName += ' (' + String.fromCharCode(i + 55) + ')'
+            button.className = 'btn btn-block btn-sm ' + (names[i] === 'Skip' ? 'btn-danger' : 'btn-primary')
             button.style.marginTop = '3px'
-            button.innerHTML = res[1][i]
-            button.setAttribute('data-label', res[1][i])
+            button.innerHTML = labelName
+            button.setAttribute('data-label', names[i])
             button.addEventListener('click', function(event) {
-                poseSetSpecies(event.currentTarget.getAttribute('data-label'))
+                var chosen = event.currentTarget.getAttribute('data-label')
+                if (chosen === 'Skip') poseSkipCluster()
+                else poseSetSpecies(chosen)
             })
             speciesDiv.appendChild(button)
         }
+        var speciesSubmit = document.createElement('button')
+        speciesSubmit.className = 'btn btn-primary btn-block btn-sm'
+        speciesSubmit.style.marginTop = '3px'
+        speciesSubmit.innerHTML = 'Submit cluster'
+        speciesSubmit.addEventListener('click', function() { poseSave(true) })
+        speciesDiv.appendChild(speciesSubmit)
     }
     divBtns.appendChild(speciesDiv)
 
     var submit = document.createElement('button')
+    submit.id = 'poseSubmitCluster'
     submit.className = 'btn btn-primary btn-block btn-sm'
     submit.style.marginTop = '3px'
     submit.innerHTML = 'Submit cluster'
@@ -105,6 +145,7 @@ function buildPoseReviewPanel(res) {
     divBtns.appendChild(submit)
 
     var skip = document.createElement('button')
+    skip.id = 'poseSkipCluster'
     skip.className = 'btn btn-info btn-block btn-sm'
     skip.style.marginTop = '3px'
     skip.innerHTML = 'Skip'
@@ -115,10 +156,32 @@ function buildPoseReviewPanel(res) {
 }
 
 function poseRefresh() {
+    var speciesMode = poseReviewMode === 'species'
     var speciesDiv = document.getElementById('poseSpeciesButtons')
-    if (speciesDiv) speciesDiv.style.display = poseReviewMode === 'species' ? 'block' : 'none'
+    if (speciesDiv) speciesDiv.style.display = speciesMode ? 'block' : 'none'
+    var submit = document.getElementById('poseSubmitCluster')
+    var skip = document.getElementById('poseSkipCluster')
+    if (submit) submit.style.display = speciesMode ? 'none' : 'block'
+    if (skip) skip.style.display = speciesMode ? 'none' : 'block'
     addedDetections['map1'] = false
     addDetections('map1')
+}
+
+function poseCm(value) {
+    if (value == null || value === '') return '-'
+    var number = Number(value)
+    if (isNaN(number)) return '-'
+    return number.toFixed(2)
+}
+
+function poseHotkey(key) {
+    var index = POSE_KEY_INDEX[key]
+    if (index == null) return false
+    var name = poseHotkeyNames[index]
+    if (!name || name === 'N' || hotkeys[index] == EMPTY_HOTKEY_ID) return false
+    if (name === 'Skip') poseSkipCluster()
+    else poseSetSpecies(name)
+    return true
 }
 
 function poseCurrentImage() {
@@ -133,9 +196,7 @@ function poseShowMeasurements(detection) {
         node.innerHTML = 'Shoulder height: -<br>Back length: -'
         return
     }
-    var shoulder = detection.shoulder_height == null ? '-' : detection.shoulder_height
-    var back = detection.back_length == null ? '-' : detection.back_length
-    node.innerHTML = 'Shoulder height: ' + shoulder + ' cm<br>Back length: ' + back + ' cm'
+    node.innerHTML = 'Shoulder height: ' + poseCm(detection.shoulder_height) + ' cm<br>Back length: ' + poseCm(detection.back_length) + ' cm'
 }
 
 function poseSelectedDetection() {
@@ -173,10 +234,12 @@ function poseAfterDetections(mapID) {
         }(dbDetIds[mapID][leafletID]))
     }
     if (poseReviewMode !== 'pose') return
+    poseBindModes(mapID)
     poseMarkers = L.layerGroup().addTo(map[mapID])
     for (var i = 0; i < image.detections.length; i++) {
         var detection = image.detections[i]
         var points = detection.keypoints || []
+        poseDrawSkeleton(mapID, points)
         for (var p = 0; p < points.length; p++) {
             poseAddMarker(mapID, detection, points[p])
         }
@@ -187,34 +250,133 @@ function poseAfterDetections(mapID) {
     }
 }
 
+function poseBindModes(mapID) {
+    if (poseModesBound) return
+    poseModesBound = true
+    map[mapID].on('draw:editstart', function() { poseEditMode = true })
+    map[mapID].on('draw:editstop', function() { poseEditMode = false })
+    map[mapID].on('draw:deletestart', function() { poseDeleteMode = true })
+    map[mapID].on('draw:deleted', function() {
+        poseDeleteSaved = true
+        poseCommitDeletes()
+    })
+    map[mapID].on('draw:deletestop', function() {
+        if (!poseDeleteSaved) poseClearDeleteMarks()
+        poseDeleteSaved = false
+        poseDeleteMode = false
+    })
+}
+
+function posePointLatLng(mapID, point) {
+    return [point.y * mapHeight[mapID], point.x * mapWidth[mapID]]
+}
+
+function poseDrawSkeleton(mapID, points) {
+    var byName = {}
+    for (var i = 0; i < points.length; i++) byName[points[i].name] = points[i]
+    var edges = POSE_EDGES.slice()
+    if (byName.shoulder_top) {
+        var top = byName.shoulder_top
+        var nearest = null
+        var nearestDistance = null
+        ;['left_shoulder', 'right_shoulder'].forEach(function(name) {
+            if (!byName[name]) return
+            var distance = Math.abs(byName[name].x - top.x)
+            if (nearestDistance == null || distance < nearestDistance) {
+                nearest = name
+                nearestDistance = distance
+            }
+        })
+        if (nearest) edges.push(['shoulder_top', nearest])
+    }
+    edges.forEach(function(edge) {
+        if (!byName[edge[0]] || !byName[edge[1]]) return
+        poseMarkers.addLayer(L.polyline(
+            [posePointLatLng(mapID, byName[edge[0]]), posePointLatLng(mapID, byName[edge[1]])],
+            {color: '#F2C14E', weight: 2, interactive: false}
+        ))
+    })
+}
+
+function poseUpdateLines(mapID) {
+    if (!poseMarkers) return
+    var image = poseCurrentImage()
+    if (!image) return
+    var lines = []
+    poseMarkers.eachLayer(function(layer) {
+        if (layer instanceof L.Polyline && !(layer instanceof L.CircleMarker)) lines.push(layer)
+    })
+    lines.forEach(function(line) { poseMarkers.removeLayer(line) })
+    for (var i = 0; i < image.detections.length; i++) {
+        poseDrawSkeleton(mapID, image.detections[i].keypoints || [])
+    }
+}
+
 function poseAddMarker(mapID, detection, point) {
-    var marker = L.marker(
-        [point.y * mapHeight[mapID], point.x * mapWidth[mapID]],
-        {draggable: true, title: point.name}
-    )
+    var marker = L.circleMarker(posePointLatLng(mapID, point), {
+        radius: 6,
+        color: '#7A3E00',
+        weight: 1,
+        fillColor: '#DF691A',
+        fillOpacity: 1
+    })
     marker.bindTooltip(point.name, {permanent: false, direction: 'top'})
     marker.poseDetection = detection
     marker.posePoint = point
-    marker.on('dragend', function(event) {
-        var latlng = event.target.getLatLng()
-        event.target.posePoint.x = Math.max(0, Math.min(1, latlng.lng / mapWidth[mapID]))
-        event.target.posePoint.y = Math.max(0, Math.min(1, latlng.lat / mapHeight[mapID]))
-        if (event.target.posePoint.source !== 'user') event.target.posePoint.source = 'user_edited'
-        event.target.poseDetection.poseDirty = true
-    })
-    marker.on('contextmenu', function(event) {
+    marker.on('mousedown', function(event) {
+        if (!poseEditMode) return
         L.DomEvent.stopPropagation(event)
-        poseDeletePoint(event.target.poseDetection, event.target.posePoint.name)
+        map[mapID].dragging.disable()
+        var move = function(ev) { marker.setLatLng(ev.latlng) }
+        var up = function(ev) {
+            map[mapID].off('mousemove', move)
+            map[mapID].off('mouseup', up)
+            map[mapID].dragging.enable()
+            var latlng = ev.latlng
+            point.x = Math.max(0, Math.min(1, latlng.lng / mapWidth[mapID]))
+            point.y = Math.max(0, Math.min(1, latlng.lat / mapHeight[mapID]))
+            if (point.source !== 'user') point.source = 'user_edited'
+            detection.poseDirty = true
+            marker.setLatLng(posePointLatLng(mapID, point))
+            poseUpdateLines(mapID)
+        }
+        map[mapID].on('mousemove', move)
+        map[mapID].on('mouseup', up)
+    })
+    marker.on('click', function() {
+        if (!poseDeleteMode) return
+        point.pendingDelete = !point.pendingDelete
+        marker.setStyle({fillColor: point.pendingDelete ? '#888888' : '#DF691A', fillOpacity: point.pendingDelete ? 0.35 : 1})
     })
     poseMarkers.addLayer(marker)
 }
 
-function poseDeletePoint(detection, name) {
-    detection.keypoints = (detection.keypoints || []).filter(function(point) {
-        return point.name !== name
+function poseCommitDeletes() {
+    if (!isPoseReview() || poseReviewMode !== 'pose') return
+    var image = poseCurrentImage()
+    if (!image) return
+    var changed = false
+    for (var i = 0; i < image.detections.length; i++) {
+        var detection = image.detections[i]
+        var before = (detection.keypoints || []).length
+        detection.keypoints = (detection.keypoints || []).filter(function(point) { return !point.pendingDelete })
+        if (detection.keypoints.length !== before) {
+            detection.poseDirty = true
+            changed = true
+        }
+    }
+    if (changed) poseRefresh()
+}
+
+function poseClearDeleteMarks() {
+    var image = poseCurrentImage()
+    if (!image || !poseMarkers) return
+    for (var i = 0; i < image.detections.length; i++) {
+        (image.detections[i].keypoints || []).forEach(function(point) { point.pendingDelete = false })
+    }
+    poseMarkers.eachLayer(function(layer) {
+        if (layer.posePoint) layer.setStyle({fillColor: '#DF691A', fillOpacity: 1})
     })
-    detection.poseDirty = true
-    poseRefresh()
 }
 
 function poseMapContext(event) {
