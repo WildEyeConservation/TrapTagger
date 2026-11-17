@@ -53,6 +53,7 @@ export WBIA_DB_NAME=${30}
 export WBIA_DB_SERVER=${31}
 export WBIA_DIR=${32}
 export DEBUGGING=${33}
+export CPU_WORKERS=${34}
 
 printf \
 'BASE_WORKER_NAME='$BASE_WORKER_NAME'\n'\
@@ -87,9 +88,11 @@ printf \
 'WBIA_DB_NAME='$WBIA_DB_NAME'\n'\
 'WBIA_DB_SERVER='$WBIA_DB_SERVER'\n'\
 'WBIA_DIR='$WBIA_DIR'\n'\
-'DEBUGGING='$DEBUGGING'\n'
+'DEBUGGING='$DEBUGGING'\n'\
+'CPU_WORKERS='$CPU_WORKERS'\n'
 
 num_procs=$(nproc)
+num_procs=$(( num_procs < CPU_WORKERS ? num_procs : CPU_WORKERS ))
 for (( i=1; i<=num_procs; i++ ))
 do
   export WORKER_NAME=$BASE_WORKER_NAME${i}
