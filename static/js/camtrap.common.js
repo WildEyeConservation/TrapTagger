@@ -911,6 +911,7 @@ function addDetections(mapID = 'map1') {
         }
         addedDetections[mapID] = true
         finishedDisplaying[mapID] = true
+        if (typeof poseAfterDetections === 'function') poseAfterDetections(mapID)
     }
 }
 
@@ -1471,6 +1472,7 @@ function checkClusterReady(mapID = 'map1') {
 }
 
 function prevCluster(mapID = 'map1'){
+    if (typeof poseSaveOnLeave === 'function') poseSaveOnLeave()
     /** Checks if the user is able to go to the previous cluster, and calls goToPrevCluster if they are. */
     if (isTutorial) {
         if (finishedDisplaying[mapID] && !modalActive && !modalActive2) {
@@ -1753,6 +1755,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
 
 function nextImage(mapID = 'map1'){
     /** Switches to the next image in the cluster if its available. */
+    if (typeof poseSaveOnLeave === 'function') poseSaveOnLeave()
     if (isTutorial) {
         if (finishedDisplaying[mapID] && !modalActive && !modalActive2) {
             if (!tutProcessUserInput('nextImage')) return;
@@ -1792,6 +1795,7 @@ function nextImage(mapID = 'map1'){
 }
 
 function forwardImage(mapID = 'map1'){
+    if (typeof poseSaveOnLeave === 'function') poseSaveOnLeave()
     /** Switches to the next image in the cluster if its available. */
     if (finishedDisplaying[mapID] == true) {
         // Make an exception for finish looking at cluster modal
@@ -1823,6 +1827,7 @@ function forwardImage(mapID = 'map1'){
 
 function prevImage(mapID = 'map1'){
     /** Switches to the previous image in a cluster. */
+    if (typeof poseSaveOnLeave === 'function') poseSaveOnLeave()
     if (isTutorial) {
         if (finishedDisplaying[mapID] && !modalActive && !modalActive2) {
             if (!tutProcessUserInput('prevImage')) return;
@@ -1860,6 +1865,7 @@ function prevImage(mapID = 'map1'){
 
 function backImage(mapID = 'map1'){
     /** Switches to the previous image in a cluster. */
+    if (typeof poseSaveOnLeave === 'function') poseSaveOnLeave()
     if (finishedDisplaying[mapID] == true) {
         // Make an exception for finish looking at cluster modal
         allowBypass=false
@@ -2021,6 +2027,7 @@ function updateSlider(mapID = 'map1', update_flank = false) {
 
 function nextCluster(mapID = 'map1') {
     /** Goes to the next cluster. */
+    if (typeof poseSaveOnLeave === 'function') poseSaveOnLeave()
     allow = true
     if (isReviewing) {
         if (clusterIndex[mapID] >= (clusters[mapID].length-1)) {
@@ -3823,6 +3830,10 @@ function sendNoteExplore(mapID = 'map1') {
 
 function initKeys(res){
     /** Initialises the buttons for the current task, using the input data. */
+    if (typeof taggingLevel === 'string' && taggingLevel.indexOf('-9') === 0 && typeof buildPoseReviewPanel === 'function') {
+        buildPoseReviewPanel(res)
+        return
+    }
     if ((!isBounding) && (divBtns != null)) {
         skipName = null
         if (multipleStatus) {

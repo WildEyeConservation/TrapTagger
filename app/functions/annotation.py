@@ -812,6 +812,47 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
                             .join(Camera)
 
+            elif '-9' in taggingLevel:
+                # Same image set as box correction. Pose fields are attached afterwards.
+                rDetsSQ = rDets(db.session.query(Detection)).subquery()
+                clusters = db.session.query(
+                                Cluster.id,
+                                Cluster.notes,
+                                Image.id,
+                                Image.filename,
+                                Image.corrected_timestamp,
+                                Image.detection_rating,
+                                Camera.id,
+                                Camera.path,
+                                Camera.trapgroup_id,
+                                rDetsSQ.c.id,
+                                rDetsSQ.c.top,
+                                rDetsSQ.c.bottom,
+                                rDetsSQ.c.left,
+                                rDetsSQ.c.right,
+                                rDetsSQ.c.category,
+                                rDetsSQ.c.static,
+                                Label.id,
+                                Label.description,
+                                requiredimagestable.c.image_id,
+                                None,
+                                None,
+                                None,
+                                None,
+                                None,
+                                None,
+                                None,
+                                None
+                            )\
+                            .join(Image, Cluster.images) \
+                            .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
+                            .join(Camera) \
+                            .outerjoin(rDetsSQ,rDetsSQ.c.image_id==Image.id) \
+                            .outerjoin(Labelgroup)\
+                            .outerjoin(Label,Labelgroup.labels)\
+                            .filter(Image.zip_id==None)\
+                            .filter(or_(Labelgroup.task_id==task_id,Labelgroup.id==None))
+
             elif isBounding:
                 # we need to outerjoin to the rDets in order to display the empty images
                 rDetsSQ = rDets(db.session.query(Detection)).subquery()
@@ -1264,6 +1305,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
         # If its a max request, the last cluster is probably missing info
         if max_request and (len(clusterInfo.keys())>1): del clusterInfo[clusters[-1][0]]
 
+        if '-9' in taggingLevel:
+            _attach_pose_fields(clusterInfo)
+
         return clusterInfo, max_request
 
 # def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit):
@@ -1364,6 +1408,47 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
 
 #     return clusters
 
+def _attach_pose_fields(clusterInfo):
+    '''Add stored pose points and measurements onto detections already in clusterInfo.'''
+    det_ids = []
+    for cluster in clusterInfo.values():
+        for image in cluster.get('images', {}).values():
+            det_ids.extend(image.get('detections', {}).keys())
+    if not det_ids:
+        return
+    rows = db.session.query(
+            Detection.id,
+            Detection.flank,
+            Detection.shoulder_height,
+            Detection.back_length,
+            Detection.pose_checked,
+            Detection.distance,
+        ).filter(Detection.id.in_(det_ids)).all()
+    by_id = {row[0]: row for row in rows}
+    points = db.session.query(PoseKeypoint).filter(PoseKeypoint.detection_id.in_(det_ids)).all()
+    by_det = {}
+    for point in points:
+        by_det.setdefault(point.detection_id, []).append({
+            'name': point.name,
+            'x': point.x,
+            'y': point.y,
+            'score': point.score,
+            'source': point.source,
+        })
+    for cluster in clusterInfo.values():
+        for image in cluster.get('images', {}).values():
+            for det_id, det in image.get('detections', {}).items():
+                row = by_id.get(det_id)
+                if row is None:
+                    continue
+                det['flank'] = Config.FLANK_TEXT[row[1]] if row[1] else 'None'
+                det['shoulder_height'] = row[2]
+                det['back_length'] = row[3]
+                det['pose_checked'] = bool(row[4])
+                det['distance'] = None if row[5] is None else float(row[5])
+                det['keypoints'] = by_det.get(det_id, [])
+
+
 def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections,addMaskArea):
     '''Returns the labels and hotkeys for the given tagging level and task'''
 
@@ -1391,6 +1476,9 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections,addMaskAre
         special_categories = special_categories.all()
         
         categories.extend(special_categories)
+    elif '-9' in taggingLevel:
+        categories = db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.children.any()).all()
+        addSkip = True
     elif '-2' in taggingLevel:
         categories = db.session.query(Tag).filter(Tag.task_id == task_id).all()
         # categories.extend( db.session.query(Tag).filter(Tag.task_id == None).all() )
@@ -1527,6 +1615,10 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0],
                                 'flank': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['flank'].capitalize(),
                                 'distance': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('distance'),
+                                'shoulder_height': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('shoulder_height'),
+                                'back_length': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('back_length'),
+                                'pose_checked': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('pose_checked', False),
+                                'keypoints': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('keypoints', []),
                                 'active': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['active']}
                             # for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
                             #                                         '-4' not in taggingLevel) 
@@ -1604,6 +1696,10 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'label': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['labels'][0],
                                 'flank': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['flank'].capitalize(),
                                 'distance': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('distance'),
+                                'shoulder_height': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('shoulder_height'),
+                                'back_length': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('back_length'),
+                                'pose_checked': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('pose_checked', False),
+                                'keypoints': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('keypoints', []),
                                 'active': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['active']}
                             # for detection_id in clusterInfo[cluster_id]['images'][image_id]['detections'] if ((
                             #                                     '-4' not in taggingLevel) 

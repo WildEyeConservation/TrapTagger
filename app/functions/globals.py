@@ -2176,6 +2176,20 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id,trapgroup_id=None):
                         .filter(Labelgroup.labels.contains(label))\
                         .filter(Cluster.skipped==False)
 
+            elif tL[0] == '-9':
+                # Pose review: a detection of this label that the height job has
+                # already touched and that has not been checked.
+                touched = or_(
+                    Detection.pose_keypoints.any(),
+                    Detection.shoulder_height != None,
+                    Detection.back_length != None,
+                )
+                sq = sq.join(Labelgroup)\
+                        .filter(Labelgroup.task_id==task_id)\
+                        .filter(Labelgroup.labels.contains(label))\
+                        .filter(Detection.pose_checked==False)\
+                        .filter(touched)
+
         # Species-level labelling
         else:
             label = db.session.query(Label).get(int(taggingLevel))
@@ -7020,7 +7034,7 @@ def launch_task(self,task_id,classify=False):
         db.session.commit()
 
         # if not (any(item in taggingLevel for item in ['-4','-5','-6']) or isBounding):
-        if not (any(item in taggingLevel for item in ['-4','-5','-7']) or isBounding):
+        if not (any(item in taggingLevel for item in ['-4','-5','-7','-9']) or isBounding):
             jobs = []
             trapgroup_ids = [r[0] for r in db.session.query(Trapgroup.id).filter(Trapgroup.survey_id==task.survey_id).distinct().all()]
             for trapgroup_id in trapgroup_ids:
@@ -7178,7 +7192,7 @@ def _depth_exclusion_reason(sightings_total, cal_count, cal_with_bbox, height_re
         if height_ready:
             reasons.append('All matching detections already have distances, shoulder height, and back length')
         else:
-            reasons.append('All matching detections already have distances')
+            reasons.append('All matching detections already have distances and no eligible calibration images with heights')
     if not reasons:
         reasons.append('Not eligible')
     return '; '.join(reasons)

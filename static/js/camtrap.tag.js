@@ -668,7 +668,18 @@ function taggingMapPrep(mapID = 'map1') {
             var layers = e.layers
             // traverse the event layers and get the detection ids
             layers.eachLayer(function(layer) {
-                detection_edits[Number(dbDetIds[mapID][layer._leaflet_id])] = {
+                let detId = Number(dbDetIds[mapID][layer._leaflet_id])
+                if (typeof taggingLevel === 'string' && taggingLevel.indexOf('-9') === 0) {
+                    let image = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]]
+                    for (let i=0;i<image.detections.length;i++) {
+                        if (image.detections[i].id == detId) {
+                            image.detections[i].distance = null
+                            image.detections[i].shoulder_height = null
+                            image.detections[i].back_length = null
+                        }
+                    }
+                }
+                detection_edits[detId] = {
                     'bounding_box': {
                         'top': Math.max(0.0,Math.min(1.0,layer.getBounds().getNorthEast().lat/mapHeight[mapID])),
                         'bottom': Math.max(0.0,Math.min(1.0,layer.getBounds().getSouthWest().lat/mapHeight[mapID])),

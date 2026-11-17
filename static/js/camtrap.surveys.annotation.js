@@ -127,6 +127,10 @@ function launchTask(){
     taskSize = parseInt(document.getElementById('taskSize').value)
     taskTaggingLevel = document.getElementById('taskTaggingLevel').value
 
+    if (tabActiveLaunch == 'basePoseTab') {
+        taskTaggingLevel = '-9,' + taskTaggingLevel
+    }
+
     if (tabActiveLaunch == 'baseSightingTab' || tabActiveLaunch == 'baseMultiSpeciesTab' || tabActiveLaunch == 'baseEmptyTab') {
         isBounding = true
     } else {
@@ -622,6 +626,7 @@ function resetLaunchTaskPage() {
     document.getElementById('taskSize').value = 200
     document.getElementById('launchErrors').value = ''
     document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openPoseTab').disabled = true
     document.getElementById('openMultiSpeciesTab').disabled = true
     document.getElementById('openIndividualTab').disabled = true
     document.getElementById('openAISpeciesTab').disabled = true
@@ -660,6 +665,7 @@ function openClusterTag() {
         document.getElementById('labelLevelChild').checked = false
 
         document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openPoseTab').disabled = true
         document.getElementById('openMultiSpeciesTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
@@ -688,6 +694,7 @@ function openClusterTag() {
 
                 if (taskCompletionStatus == 'True') {
                     document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openPoseTab').disabled = false
                     document.getElementById('openMultiSpeciesTab').disabled = false
                     document.getElementById('openIndividualTab').disabled = false
                     document.getElementById('openAISpeciesTab').disabled = false
@@ -714,6 +721,7 @@ function openInfoTag() {
         document.getElementById('labelLevel').style.display = 'none'
 
         document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openPoseTab').disabled = true
         document.getElementById('openMultiSpeciesTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
@@ -741,6 +749,7 @@ function openInfoTag() {
                 }
 
                 document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openPoseTab').disabled = false
                 document.getElementById('openMultiSpeciesTab').disabled = false
                 document.getElementById('openIndividualTab').disabled = false
                 document.getElementById('openAISpeciesTab').disabled = false
@@ -965,6 +974,7 @@ function openIndividualID() {
         document.getElementById('labelLevel').style.display = 'none'
 
         document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openPoseTab').disabled = true
         document.getElementById('openMultiSpeciesTab').disabled = true
         document.getElementById('openSpeciesLabellingTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
@@ -1012,6 +1022,7 @@ function openIndividualID() {
                 }
 
                 document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openPoseTab').disabled = false
                 document.getElementById('openMultiSpeciesTab').disabled = false
                 document.getElementById('openInfoTab').disabled = false
                 document.getElementById('openAISpeciesTab').disabled = false
@@ -1162,6 +1173,7 @@ function openClassTag() {
         document.getElementById('labelLevel').style.display = 'none'
 
         document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openPoseTab').disabled = true
         document.getElementById('openMultiSpeciesTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openInfoTab').disabled = true
@@ -1189,6 +1201,7 @@ function openClassTag() {
                 }
 
                 document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openPoseTab').disabled = false
                 document.getElementById('openMultiSpeciesTab').disabled = false
                 document.getElementById('openIndividualTab').disabled = false
                 document.getElementById('openInfoTab').disabled = false
@@ -1255,6 +1268,59 @@ function openSightingTag() {
     }
 }
 
+function openPoseTag() {
+    /** Populates the launch form for pose review. */
+
+    if (tabActiveLaunch == 'basePoseTab') {
+        individualLevel = document.getElementById('individualLevel')
+        while(individualLevel.firstChild){
+            individualLevel.removeChild(individualLevel.firstChild);
+        }
+
+        document.getElementById('labelLevel').style.display = 'none'
+        document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openPoseTab').disabled = true
+        document.getElementById('openMultiSpeciesTab').disabled = true
+        document.getElementById('openIndividualTab').disabled = true
+        document.getElementById('openAISpeciesTab').disabled = true
+        document.getElementById('openRelatedClustersTab').disabled = true
+        document.getElementById('openInfoTab').disabled = true
+        document.getElementById('openSpeciesLabellingTab').disabled = true
+        document.getElementById('openEmptyTab').disabled = true
+
+        document.getElementById('annotationDescription').innerHTML = "<i>Review and correct the pose points, flank, and species for animals that already have a height or back length. Mark a sighting unusable when the animal cannot be measured.</i>"
+
+        clearSelect(document.getElementById('taskTaggingLevel'))
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", '/getTaggingLevelsbyTask/'+selectedTask+'/pose');
+        xhttp.onreadystatechange =
+        function(){
+            if (this.readyState == 4 && this.status == 200) {
+                reply = JSON.parse(this.responseText);
+                clearSelect(document.getElementById('taskTaggingLevel'))
+                fillSelect(document.getElementById('taskTaggingLevel'), reply.texts, reply.values, reply.colours)
+
+                if (reply.disabled == 'true') {
+                    document.getElementById('taskTaggingLevel').disabled = true
+                } else {
+                    document.getElementById('taskTaggingLevel').disabled = false
+                }
+
+                document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openPoseTab').disabled = false
+                document.getElementById('openMultiSpeciesTab').disabled = false
+                document.getElementById('openIndividualTab').disabled = false
+                document.getElementById('openAISpeciesTab').disabled = false
+                document.getElementById('openRelatedClustersTab').disabled = false
+                document.getElementById('openInfoTab').disabled = false
+                document.getElementById('openSpeciesLabellingTab').disabled = false
+                document.getElementById('openEmptyTab').disabled = false
+            }
+        }
+        xhttp.send();
+    }
+}
+
 function openMultiSpeciesTag() {
     /** Listens for the bounding-box correction task being selected, and populates the form accordingly. */
 
@@ -1267,6 +1333,7 @@ function openMultiSpeciesTag() {
         document.getElementById('labelLevel').style.display = 'none'
 
         document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openPoseTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
         document.getElementById('openRelatedClustersTab').disabled = true
@@ -1294,6 +1361,7 @@ function openMultiSpeciesTag() {
                 }
 
                 document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openPoseTab').disabled = false
                 document.getElementById('openIndividualTab').disabled = false
                 document.getElementById('openAISpeciesTab').disabled = false
                 document.getElementById('openRelatedClustersTab').disabled = false
@@ -1317,6 +1385,7 @@ function openMultiSpeciesTag() {
 //         }
 
 //         document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openPoseTab').disabled = true
 //         document.getElementById('openMultiSpeciesTab').disabled = true
 //         document.getElementById('openIndividualTab').disabled = true
 //         document.getElementById('openAISpeciesTab').disabled = true
@@ -1342,6 +1411,7 @@ function openMultiSpeciesTag() {
 //                 }
 
 //                 document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openPoseTab').disabled = false
 //                 document.getElementById('openMultiSpeciesTab').disabled = false
 //                 document.getElementById('openIndividualTab').disabled = false
 //                 document.getElementById('openAISpeciesTab').disabled = false
@@ -1434,6 +1504,7 @@ modalLaunchTask.on('shown.bs.modal', function(){
                 taskCompletionStatus = JSON.parse(this.responseText);  
                 if (taskCompletionStatus == 'True') {
                     document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openPoseTab').disabled = false
                     document.getElementById('openMultiSpeciesTab').disabled = false
                     document.getElementById('openIndividualTab').disabled = false
                     document.getElementById('openAISpeciesTab').disabled = false
@@ -1503,6 +1574,9 @@ function changeAnnotationTab(evt, tabName) {
     else if (tabName == 'baseSightingTab') {
         openSightingTag()
     }
+    else if (tabName == 'basePoseTab') {
+        openPoseTag()
+    }
     else if (tabName == 'baseIndividualTab') {
         openIndividualID()
     }
@@ -1521,6 +1595,7 @@ function openEmptyTag() {
         document.getElementById('labelLevel').style.display = 'none'
 
         document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openPoseTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openAISpeciesTab').disabled = true
         document.getElementById('openRelatedClustersTab').disabled = true
@@ -1547,6 +1622,7 @@ function openEmptyTag() {
                 }
 
                 document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openPoseTab').disabled = false
                 document.getElementById('openIndividualTab').disabled = false
                 document.getElementById('openAISpeciesTab').disabled = false
                 document.getElementById('openRelatedClustersTab').disabled = false
@@ -1572,6 +1648,7 @@ function openRelatedTag() {
         document.getElementById('labelLevel').style.display = 'none'
 
         document.getElementById('openSightingTab').disabled = true
+        document.getElementById('openPoseTab').disabled = true
         document.getElementById('openMultiSpeciesTab').disabled = true
         document.getElementById('openIndividualTab').disabled = true
         document.getElementById('openInfoTab').disabled = true
@@ -1599,6 +1676,7 @@ function openRelatedTag() {
                 }
 
                 document.getElementById('openSightingTab').disabled = false
+                document.getElementById('openPoseTab').disabled = false
                 document.getElementById('openMultiSpeciesTab').disabled = false
                 document.getElementById('openIndividualTab').disabled = false
                 document.getElementById('openInfoTab').disabled = false

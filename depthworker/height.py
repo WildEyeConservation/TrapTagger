@@ -210,6 +210,67 @@ def shoulder_top_pixel(mask, shoulder):
     return {'x': float(x), 'y': float(min(hits)), 'score': None, 'name': SHOULDER_TOP_NAME}
 
 
+def measurements_from_stored_points(points, flank, distance_m, scale_factor, width, height):
+    '''Centimetre measurements from stored fraction keypoints.
+
+    points are fractions of the image. width and height are the image pixels
+    those fractions belong to. A missing score is treated as usable, because
+    a person placed the point. A missing required point, distance, or scale
+    factor makes that measurement 0.
+    '''
+    keypoints = {}
+    for point in points or []:
+        name = point.get('name')
+        if not name:
+            continue
+        try:
+            x = float(point['x']) * float(width)
+            y = float(point['y']) * float(height)
+        except (TypeError, ValueError, KeyError):
+            continue
+        score = point.get('score')
+        if score is None:
+            score = 1.0
+        keypoints[name] = {'name': name, 'x': x, 'y': y, 'score': score}
+
+    shoulder_height = 0
+    back_length = 0
+    try:
+        distance_m = float(distance_m)
+        scale_factor = float(scale_factor)
+        width = float(width)
+        height = float(height)
+    except (TypeError, ValueError):
+        return 0, 0
+    if distance_m <= 0 or scale_factor <= 0 or width <= 0 or height <= 0:
+        return 0, 0
+
+    side = choose_leg_side(flank, keypoints)
+    if side is not None:
+        names = LEFT_LEG if side == 'left' else RIGHT_LEG
+        shoulder = keypoints.get(names[0])
+        elbow = keypoints.get(names[1])
+        paw = keypoints.get(names[2])
+        top = keypoints.get(SHOULDER_TOP_NAME)
+        if top is not None and _usable(shoulder) and _usable(elbow) and _usable(paw):
+            pixel_length = (
+                _pixel_distance(top, shoulder)
+                + _pixel_distance(shoulder, elbow)
+                + _pixel_distance(elbow, paw)
+            )
+            value = 100.0 * pixel_length * distance_m / scale_factor
+            shoulder_height = value if value > 0 else 0
+
+    neck = keypoints.get('neck')
+    tail = keypoints.get('tail')
+    if _usable(neck) and _usable(tail):
+        pixel_length = _pixel_distance(neck, tail)
+        value = 100.0 * pixel_length * distance_m / scale_factor
+        back_length = value if value > 0 else 0
+
+    return shoulder_height, back_length
+
+
 def measure_animal(keypoints, mask, distance_m, scale_factor, flank, compute_shoulder=True, compute_back=True):
     '''Return centimetre measurements and the keypoint rows to store.
 

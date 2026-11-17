@@ -1370,6 +1370,27 @@ def getTaggingLevelsbyTask(task_id,task_type):
         texts.append('Vehicles/Humans/Livestock ('+str(vhl_bounding_count)+')')
         values.append(GLOBALS.vhl_id)
 
+    elif task_type=='pose':
+        disabled = 'false'
+        colours = []
+        texts = []
+        values = []
+        touched = or_(
+            Detection.pose_keypoints.any(),
+            Detection.shoulder_height != None,
+            Detection.back_length != None,
+        )
+        for label in task.labels:
+            count = db.session.query(Detection.id)\
+                            .join(Labelgroup)\
+                            .filter(Labelgroup.task_id==task_id)\
+                            .filter(Labelgroup.labels.contains(label))\
+                            .filter(Detection.pose_checked==False)\
+                            .filter(touched)\
+                            .distinct().count()
+            colours.append('#0A7850' if count==0 else '#000000')
+            texts.append(label.description+' ('+str(count)+')')
+            values.append(label.id)
 
     elif task_type=='clusterTag':
 
@@ -5491,6 +5512,9 @@ def getJobs():
             elif '-7' in tagging_level:
                 task_type = 'Empty Label Check'
                 species = 'All'
+            elif '-9' in tagging_level:
+                task_type = 'Pose Review'
+                species = db.session.query(Label).get(int(re.split(',', tagging_level)[1])).description
             else:
                 if is_bounding == False:
                     task_type = 'Species Labelling'
@@ -9338,6 +9362,8 @@ def initKeys():
             reply[str(label.id)] = genInitKeys(str(label.id),task.id,False,addRemoveFalseDetections,addMaskArea)
         reply['-1'] = genInitKeys('-1',task.id,addSkip,addRemoveFalseDetections,addMaskArea)
         reply['-2'] = genInitKeys('-2',task.id,False,addRemoveFalseDetections,addMaskArea)
+        if '-9' in task.tagging_level:
+            reply[task.tagging_level] = genInitKeys(task.tagging_level, task.id, True, False, False)
 
         return json.dumps(reply)
     else:
@@ -9995,6 +10021,8 @@ def editSightings(image_id,task_id):
                                 new_right = max(0.0, min(1.0, float(detectionsDict[detID]['right'])))
                                 if detection_bbox_changed(detection, new_top, new_left, new_right, new_bottom):
                                     detection.distance = None
+                                    detection.shoulder_height = None
+                                    detection.back_length = None
                                 detection.top = new_top
                                 detection.bottom = new_bottom
                                 detection.left = new_left
@@ -19426,6 +19454,127 @@ def getFolderLastModified():
 
     return json.dumps({'contents': contents})
 
+@app.route('/savePoseReview', methods=['POST'])
+@login_required
+def savePoseReview():
+    '''Save pose points, flank, and unusable for the current image.
+
+    submit_cluster marks the eligible detections checked and the cluster examined.
+    '''
+    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id), current_user.username)):
+        return {'redirect': url_for('done')}, 278
+
+    task = current_user.turkcode[0].task
+    if task is None or '-9' not in task.tagging_level:
+        return json.dumps({'status': 'error'})
+    if not checkAnnotationPermission(current_user.parent_id, task.id):
+        return {'redirect': url_for('done')}, 278
+
+    from depthworker.height import measurements_from_stored_points
+
+    edits = ast.literal_eval(request.form['detections'])
+    try:
+        image_width = float(request.form['image_width'])
+        image_height = float(request.form['image_height'])
+    except (TypeError, ValueError):
+        return json.dumps({'status': 'error'})
+    submit_cluster = request.form.get('submit_cluster') == 'true'
+    cluster_id = int(ast.literal_eval(request.form['cluster_id']))
+
+    updated = {}
+    for det_id, edit in edits.items():
+        detection = db.session.query(Detection).get(int(det_id))
+        if detection is None:
+            continue
+        if edit.get('unusable'):
+            for point in list(detection.pose_keypoints):
+                db.session.delete(point)
+            detection.shoulder_height = 0
+            detection.back_length = 0
+            updated[int(det_id)] = {'shoulder_height': 0, 'back_length': 0}
+            continue
+
+        if edit.get('flank'):
+            detection.flank = Config.FLANK_DB.get(str(edit['flank']).lower(), detection.flank)
+
+        live_rows = list(detection.pose_keypoints)
+        if 'keypoints' in edit:
+            existing = {point.name: point for point in detection.pose_keypoints}
+            kept = set()
+            live_rows = []
+            for point in edit['keypoints']:
+                name = point.get('name')
+                if not name:
+                    continue
+                try:
+                    x = max(0.0, min(1.0, float(point['x'])))
+                    y = max(0.0, min(1.0, float(point['y'])))
+                except (TypeError, ValueError, KeyError):
+                    continue
+                kept.add(name)
+                row = existing.get(name)
+                if row is None:
+                    row = PoseKeypoint(detection_id=detection.id, name=name, x=x, y=y, score=None, source='user')
+                    db.session.add(row)
+                live_rows.append(row)
+                moved = abs((row.x or 0) - x) > 1e-6 or abs((row.y or 0) - y) > 1e-6
+                row.x = x
+                row.y = y
+                if moved and row.source not in ('user', 'user_edited'):
+                    row.source = 'user_edited'
+            for name, row in existing.items():
+                if name not in kept:
+                    db.session.delete(row)
+
+        if detection.distance is not None and ('keypoints' in edit or edit.get('flank')):
+            db.session.flush()
+            points = [{
+                'name': point.name,
+                'x': point.x,
+                'y': point.y,
+                'score': point.score,
+            } for point in live_rows if point not in db.session.deleted]
+            shoulder, back = measurements_from_stored_points(
+                points, detection.flank, detection.distance,
+                detection.image.camera.cameragroup.scale_factor if detection.image.camera.cameragroup else None,
+                image_width, image_height,
+            )
+            detection.shoulder_height = shoulder
+            detection.back_length = back
+        updated[int(det_id)] = {
+            'shoulder_height': detection.shoulder_height,
+            'back_length': detection.back_length,
+        }
+
+    if submit_cluster:
+        cluster = db.session.query(Cluster).get(cluster_id)
+        if cluster and cluster.task_id == task.id:
+            label = db.session.query(Label).get(int(re.split(',', task.tagging_level)[1]))
+            touched = or_(
+                Detection.pose_keypoints.any(),
+                Detection.shoulder_height != None,
+                Detection.back_length != None,
+            )
+            detections = db.session.query(Detection)\
+                            .join(Image)\
+                            .join(Labelgroup)\
+                            .filter(Image.clusters.contains(cluster))\
+                            .filter(Labelgroup.task_id==task.id)\
+                            .filter(Labelgroup.labels.contains(label))\
+                            .filter(Detection.pose_checked==False)\
+                            .filter(touched)\
+                            .distinct().all()
+            for detection in detections:
+                detection.pose_checked = True
+            cluster.examined = True
+            cluster.user_id = current_user.id
+            cluster.timestamp = datetime.utcnow()
+
+    db.session.commit()
+    num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
+    return json.dumps({'status': 'success', 'progress': [num, task.size + task.test_size], 'measurements': updated})
+
+
 @app.route('/editSightingsGeneral/<task_id>', methods=['POST'])
 @login_required
 def editSightingsGeneral(task_id):
@@ -19503,6 +19652,8 @@ def editSightingsGeneral(task_id):
                     new_bottom = max(0.0, min(1.0, float(bounding_box['bottom'])))
                     if detection_bbox_changed(detection, new_top, new_left, new_right, new_bottom):
                         detection.distance = None
+                        detection.shoulder_height = None
+                        detection.back_length = None
                     detection.top = new_top
                     detection.left = new_left
                     detection.right = new_right
