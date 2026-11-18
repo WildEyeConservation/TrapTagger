@@ -19459,7 +19459,8 @@ def getFolderLastModified():
 def savePoseReview():
     '''Save pose points, flank, and unusable for the current image.
 
-    submit_cluster marks the eligible detections checked and the cluster examined.
+    submit_image marks the eligible detections on that image checked.
+    The cluster is marked examined only when this is its last image.
     '''
     if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id), current_user.username)):
         return {'redirect': url_for('done')}, 278
@@ -19479,7 +19480,14 @@ def savePoseReview():
         cluster_id = int(json.loads(request.form['cluster_id']))
     except (TypeError, ValueError, KeyError):
         return json.dumps({'status': 'error'})
-    submit_cluster = request.form.get('submit_cluster') == 'true'
+    submit_image = request.form.get('submit_image') == 'true'
+    last_image = request.form.get('last_image') == 'true'
+    image_id = None
+    if submit_image:
+        try:
+            image_id = int(request.form.get('image_id'))
+        except (TypeError, ValueError):
+            image_id = None
 
     updated = {}
     for det_id, edit in edits.items():
@@ -19555,7 +19563,7 @@ def savePoseReview():
             'back_length': detection.back_length,
         }
 
-    if submit_cluster:
+    if submit_image and image_id is not None:
         cluster = db.session.query(Cluster).get(cluster_id)
         if cluster and cluster.task_id == task.id:
             label = db.session.query(Label).get(int(re.split(',', task.tagging_level)[1]))
@@ -19567,6 +19575,7 @@ def savePoseReview():
             detections = db.session.query(Detection)\
                             .join(Image)\
                             .join(Labelgroup)\
+                            .filter(Image.id==image_id)\
                             .filter(Image.clusters.contains(cluster))\
                             .filter(Labelgroup.task_id==task.id)\
                             .filter(Labelgroup.labels.contains(label))\
@@ -19575,9 +19584,10 @@ def savePoseReview():
                             .distinct().all()
             for detection in detections:
                 detection.pose_checked = True
-            cluster.examined = True
-            cluster.user_id = current_user.id
-            cluster.timestamp = datetime.utcnow()
+            if last_image:
+                cluster.examined = True
+                cluster.user_id = current_user.id
+                cluster.timestamp = datetime.utcnow()
 
     db.session.commit()
     num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()

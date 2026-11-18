@@ -12,6 +12,8 @@ var poseEditSnapshot = null
 var poseMenuOpen = false
 var poseDeleteMode = false
 var poseDeleteSaved = false
+var poseKeepView = false
+var poseSubmitting = false
 var poseHotkeyNames = []
 var POSE_EDGES = [
     ['left_eye', 'nose'], ['right_eye', 'nose'], ['nose', 'neck'], ['neck', 'tail'],
@@ -102,7 +104,7 @@ function buildPoseReviewPanel(res) {
     unusable.id = 'poseUnusableButton'
     unusable.className = 'btn btn-danger btn-block btn-sm'
     unusable.style.marginTop = '3px'
-    unusable.innerHTML = 'Mark Unusable'
+    unusable.innerHTML = 'Mark Unusable (U)'
     unusable.addEventListener('click', function(event) {
         event.preventDefault()
         event.stopPropagation()
@@ -167,10 +169,11 @@ function buildPoseReviewPanel(res) {
     submit.className = 'btn btn-success btn-block btn-sm'
     submit.style.marginTop = '3px'
     submit.innerHTML = 'Submit (Ctrl)'
-    submit.addEventListener('click', function() { poseSave(true) })
+    submit.addEventListener('click', function() { poseSubmitImage() })
     divBtns.appendChild(submit)
 
     switchToLabel = false
+    poseUpdateDrawTool()
 }
 
 function poseRefresh() {
@@ -185,23 +188,66 @@ function poseRefresh() {
     var unusable = document.getElementById('poseUnusableButton')
     if (measurements) measurements.style.display = speciesMode ? 'none' : 'block'
     if (unusable) unusable.style.display = speciesMode ? 'none' : 'block'
+    poseKeepView = true
     addedDetections['map1'] = false
     addDetections('map1')
+    poseKeepView = false
+    if (poseEditMode || poseDeleteMode) poseFreezeBoxes('map1')
+    poseUpdateDrawTool()
 }
 
-function poseMeasureText(detection, value) {
-    var distance = detection ? Number(detection.distance) : NaN
-    if (detection && (detection.distance == null || detection.distance === '' || !(distance > 0))) return 'Missing distance'
-    if (value == null || value === '') return '-'
+function poseStoredZero(value) {
+    if (value == null || value === '') return false
     var number = Number(value)
-    if (isNaN(number)) return '-'
-    if (number === 0) return 'Unusable'
-    return number.toFixed(2) + ' cm'
+    return !isNaN(number) && number === 0
+}
+
+function poseHasDistance(detection) {
+    if (!detection || detection.distance == null || detection.distance === '') return false
+    return Number(detection.distance) > 0
+}
+
+function posePointsByName(detection) {
+    var byName = {}
+    var points = detection && detection.keypoints ? detection.keypoints : []
+    for (var i = 0; i < points.length; i++) {
+        if (points[i] && points[i].name) byName[points[i].name] = points[i]
+    }
+    return byName
+}
+
+function poseShoulderReady(detection) {
+    var byName = posePointsByName(detection)
+    if (!posePointUsable(byName.shoulder_top)) return false
+    var leftNames = ['left_shoulder', 'left_elbow', 'left_front_paw']
+    var rightNames = ['right_shoulder', 'right_elbow', 'right_front_paw']
+    var leftOk = poseLegComplete(byName, leftNames)
+    var rightOk = poseLegComplete(byName, rightNames)
+    var flank = poseCanonicalFlank(detection.flank)
+    if (flank === 'Left') return leftOk || rightOk
+    if (flank === 'Right') return rightOk || leftOk
+    return leftOk || rightOk
+}
+
+function poseBackReady(detection) {
+    var byName = posePointsByName(detection)
+    return posePointUsable(byName.neck) && posePointUsable(byName.tail)
+}
+
+function poseMeasureText(detection, value, ready) {
+    if (value != null && value !== '') {
+        var number = Number(value)
+        if (!isNaN(number) && number > 0) return number.toFixed(2) + ' cm'
+        if (poseStoredZero(value)) return 'Unusable'
+    }
+    if (!poseHasDistance(detection)) return 'Missing distance'
+    if (!ready) return 'Insufficient keypoints'
+    return '-'
 }
 
 function poseNoteStoredUnusable(detection) {
     if (!detection || detection.unusable) return
-    if (Number(detection.shoulder_height) === 0 && Number(detection.back_length) === 0) detection.unusable = true
+    if (poseStoredZero(detection.shoulder_height) && poseStoredZero(detection.back_length)) detection.unusable = true
 }
 
 function poseHotkey(key) {
@@ -299,7 +345,7 @@ function poseShowMeasurements(detection) {
     poseNoteStoredUnusable(detection)
     poseStyleFlank(detection)
     var unusableButton = document.getElementById('poseUnusableButton')
-    if (unusableButton) unusableButton.innerHTML = detection && detection.unusable ? 'Undo Unusable' : 'Mark Unusable'
+    if (unusableButton) unusableButton.innerHTML = detection && detection.unusable ? 'Undo Unusable (U)' : 'Mark Unusable (U)'
     if (!detection) {
         node.innerHTML = 'Shoulder Height: -<br>Back Length: -'
         return
@@ -316,7 +362,7 @@ function poseShowMeasurements(detection) {
         node.innerHTML = 'Shoulder Height: Recalculation Required<br>Back Length: Recalculation Required'
         return
     }
-    node.innerHTML = 'Shoulder Height: ' + poseMeasureText(detection, detection.shoulder_height) + '<br>Back Length: ' + poseMeasureText(detection, detection.back_length)
+    node.innerHTML = 'Shoulder Height: ' + poseMeasureText(detection, detection.shoulder_height, poseShoulderReady(detection)) + '<br>Back Length: ' + poseMeasureText(detection, detection.back_length, poseBackReady(detection))
 }
 
 function poseClearSelection() {
@@ -421,7 +467,10 @@ function poseBindModes(mapID) {
         poseEditMode = true
         poseEditSaved = false
         poseSnapshotEdit()
-        setTimeout(poseCornerCursors, 0)
+        setTimeout(function() {
+            poseCornerCursors()
+            poseFreezeBoxes(mapID)
+        }, 0)
     })
     map[mapID].on('draw:edited', function() { poseEditSaved = true })
     map[mapID].on('draw:editstop', function() {
@@ -430,7 +479,10 @@ function poseBindModes(mapID) {
         else poseRestoreEdit()
         poseEditSaved = false
     })
-    map[mapID].on('draw:deletestart', function() { poseDeleteMode = true })
+    map[mapID].on('draw:deletestart', function() {
+        poseDeleteMode = true
+        setTimeout(function() { poseFreezeBoxes(mapID) }, 0)
+    })
     map[mapID].on('draw:deleted', function() {
         poseDeleteSaved = true
         poseCommitDeletes()
@@ -639,6 +691,51 @@ function poseMapContext(event) {
     map['map1'].contextmenu.showAt(event.containerPoint)
 }
 
+function poseHotkeyUnusable() {
+    if (!isPoseReview() || poseReviewMode !== 'pose') return
+    var modal = $('#modalPoseUnusable')
+    if (modal.length && modal.is(':visible')) {
+        poseConfirmUnusable()
+        modal.modal('hide')
+        return
+    }
+    var detection = poseSelectedDetection()
+    if (!detection) return
+    if (detection.unusable) poseUndoUnusable(detection)
+    else modal.modal('show')
+}
+
+function poseUpdateDrawTool() {
+    if (typeof drawControl === 'undefined' || !drawControl || !drawControl._toolbars || !drawControl._toolbars.draw) return
+    var toolbar = drawControl._toolbars.draw
+    var container = toolbar._toolbarContainer
+    if (!container) return
+    var hide = isPoseReview() && poseReviewMode === 'pose'
+    container.style.display = hide ? 'none' : ''
+    if (hide && toolbar._activeMode && toolbar._activeMode.handler) toolbar._activeMode.handler.disable()
+}
+
+function poseFreezeBoxes(mapID) {
+    if (!isPoseReview() || poseReviewMode !== 'pose' || !drawnItems[mapID]) return
+    drawnItems[mapID].eachLayer(function(layer) {
+        if (layer.editing && layer.editing.enabled && layer.editing.enabled()) layer.editing.disable()
+    })
+    var toolbar = (typeof drawControl !== 'undefined' && drawControl && drawControl._toolbars) ? drawControl._toolbars.edit : null
+    var handler = toolbar && toolbar._activeMode ? toolbar._activeMode.handler : null
+    if (!handler) return
+    if (handler._disableLayerDelete) {
+        drawnItems[mapID].eachLayer(function(layer) { handler._disableLayerDelete(layer) })
+    }
+    if (!handler._poseIgnoreBoxes && handler.removeAllLayers) {
+        handler._poseIgnoreBoxes = true
+        var removeAllLayers = handler.removeAllLayers
+        handler.removeAllLayers = function() {
+            if (isPoseReview() && poseReviewMode === 'pose') return
+            return removeAllLayers.apply(this, arguments)
+        }
+    }
+}
+
 function poseCornerCursors() {
     if (!drawnItems['map1']) return
     drawnItems['map1'].eachLayer(function(layer) {
@@ -689,15 +786,22 @@ function poseSaveOnLeave() {
     poseSave(false)
 }
 
-function poseSave(submitCluster) {
+function poseSubmitImage() {
+    if (!isPoseReview() || poseSubmitting) return
+    if (typeof editingEnabled !== 'undefined' && editingEnabled) return
+    poseSave(true)
+}
+
+function poseSave(submitImage) {
     if (!isPoseReview()) return
+    if (submitImage && poseSubmitting) return
     var image = poseCurrentImage()
     var cluster = clusters['map1'][clusterIndex['map1']]
     if (!image || !cluster || String(cluster.id).indexOf('-') === 0) return
     var edits = {}
     for (var i = 0; i < image.detections.length; i++) {
         var detection = image.detections[i]
-        if (!detection.poseDirty && !submitCluster) continue
+        if (!detection.poseDirty && !submitImage) continue
         if (detection.unusable) {
             edits[detection.id] = {unusable: true}
         } else if (detection.poseDirty) {
@@ -708,7 +812,9 @@ function poseSave(submitCluster) {
         }
         detection.poseDirty = false
     }
-    if (Object.keys(edits).length === 0 && !submitCluster) return
+    if (Object.keys(edits).length === 0 && !submitImage) return
+    var lastImage = imageIndex['map1'] >= cluster.images.length - 1
+    if (submitImage) poseSubmitting = true
     var seq = ++poseSaveSeq
     for (var id in edits) {
         for (var m = 0; m < image.detections.length; m++) {
@@ -724,13 +830,17 @@ function poseSave(submitCluster) {
     formData.append('image_width', imagePixelWidth['map1'])
     formData.append('image_height', imagePixelHeight['map1'])
     formData.append('cluster_id', JSON.stringify(cluster.id))
-    formData.append('submit_cluster', submitCluster ? 'true' : 'false')
+    formData.append('image_id', image.id)
+    formData.append('submit_image', submitImage ? 'true' : 'false')
+    formData.append('last_image', lastImage ? 'true' : 'false')
     var xhttp = new XMLHttpRequest()
-    xhttp.onreadystatechange = function(savedSeq) {
+    xhttp.onreadystatechange = function(savedSeq, savedSubmit, savedLast) {
         return function() {
-            if (this.readyState == 4 && this.status == 278) {
+            if (this.readyState != 4) return
+            if (savedSubmit) poseSubmitting = false
+            if (this.status == 278) {
                 window.location.replace(JSON.parse(this.responseText)['redirect'])
-            } else if (this.readyState == 4 && this.status == 200) {
+            } else if (this.status == 200) {
                 var reply = JSON.parse(this.responseText)
                 var imageNow = poseCurrentImage()
                 if (reply.measurements && imageNow) {
@@ -750,13 +860,17 @@ function poseSave(submitCluster) {
                     poseShowMeasurements(poseSelectedDetection())
                     poseUpdateLines('map1')
                 }
-                if (submitCluster) {
+                if (savedSubmit) {
                     if (reply.progress) updateProgBar(reply.progress)
-                    nextCluster('map1')
+                    if (savedLast) nextCluster('map1')
+                    else {
+                        imageIndex['map1'] = imageIndex['map1'] + 1
+                        update('map1')
+                    }
                 }
             }
         }
-    }(seq)
+    }(seq, submitImage, lastImage)
     xhttp.open('POST', '/savePoseReview')
     xhttp.send(formData)
 }

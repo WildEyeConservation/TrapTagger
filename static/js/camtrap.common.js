@@ -886,7 +886,7 @@ function addDetections(mapID = 'map1') {
             addDetCnt = 1
         }
         image = currentImage[mapID]
-        if(!isIDing || document.getElementById('btnSendToBack')!=null||image.detections.length == 0||(image.detections.length == 1 && image.detections[0].active == false)){
+        if ((typeof poseKeepView === 'undefined' || !poseKeepView) && (!isIDing || document.getElementById('btnSendToBack')!=null||image.detections.length == 0||(image.detections.length == 1 && image.detections[0].active == false))){
             map[mapID].setZoom(map[mapID].getMinZoom())
         }
         fullRes[mapID] = false
@@ -1761,6 +1761,10 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
 
 function nextImage(mapID = 'map1'){
     /** Switches to the next image in the cluster if its available. */
+    if (mapID === 'map1' && typeof isPoseReview === 'function' && isPoseReview() && typeof poseSubmitImage === 'function' && finishedDisplaying[mapID] == true && !editingEnabled && clusters[mapID] && clusters[mapID][clusterIndex[mapID]] && imageIndex[mapID] < clusters[mapID][clusterIndex[mapID]].images.length - 1 && ((modalActive == false && modalActive2 == false) || (typeof modalAlert !== 'undefined' && modalAlert.is(':visible')))) {
+        poseSubmitImage()
+        return
+    }
     if (typeof poseSaveOnLeave === 'function') poseSaveOnLeave()
     if (isTutorial) {
         if (finishedDisplaying[mapID] && !modalActive && !modalActive2) {
@@ -4099,6 +4103,10 @@ document.onkeyup = function(event){
             if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'species' && typeof poseHotkey === 'function') {
                 if (poseHotkey(event.key.toLowerCase())) return
             }
+            if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose' && event.key.toLowerCase() === 'u' && typeof poseHotkeyUnusable === 'function') {
+                poseHotkeyUnusable()
+                return
+            }
             switch (event.key.toLowerCase()){
                 case ('0'):assignLabel(hotkeys[0])
                     break;
@@ -4187,7 +4195,7 @@ document.onkeyup = function(event){
 
                 case 'control': 
                     if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') {
-                        poseSave(true)
+                        poseSubmitImage()
                     } else if (!isReviewing){
                         if (!ctrlHeld){
                             activateMultiple()

@@ -1097,6 +1097,7 @@ function addTaggingControl(mapID = 'map1') {
     map[mapID].addControl(drawControl);
 
     drawControl._toolbars.draw._toolbarContainer.firstElementChild.title = 'Add a sighting'
+    if (typeof poseUpdateDrawTool === 'function') poseUpdateDrawTool()
 
     if (boundingBackControl != null) {
         boundingBackControl.remove()

@@ -7725,12 +7725,13 @@ def apply_depth_estimation_results(results):
         shoulder_names = set(payload.get('shoulder_keypoints') or [])
         if 'shoulder_height' in payload and payload.get('shoulder_height') is not None and not (protected & shoulder_names):
             new_shoulder = float(payload['shoulder_height'])
-            if detection.shoulder_height is None:
+            # 0 is reserved for an explicit unusable mark. A failed measurement stays null.
+            if detection.shoulder_height is None and new_shoulder > 0:
                 detection.shoulder_height = new_shoulder
         back_names = set(payload.get('back_keypoints') or [])
         if 'back_length' in payload and payload.get('back_length') is not None and not (protected & back_names):
             new_back = float(payload['back_length'])
-            if detection.back_length is None:
+            if detection.back_length is None and new_back > 0:
                 detection.back_length = new_back
         updated += 1
 
