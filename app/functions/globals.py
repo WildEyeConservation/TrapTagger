@@ -7324,6 +7324,7 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
         ) or ''
 
         matching = _depth_matching_detection_query(survey_id, cg_id, task_ids, species_list)
+        no_keypoints = ~Detection.pose_keypoints.any()
         sightings_with_depth = (
             matching.filter(Detection.distance != None)
             .with_entities(func.count(distinct(Detection.id)))
@@ -7334,8 +7335,15 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             .with_entities(func.count(distinct(Detection.id)))
             .scalar()
         ) or 0
+        sightings_with_height = (
+            matching.filter(Detection.shoulder_height != None)
+            .with_entities(func.count(distinct(Detection.id)))
+            .scalar()
+        ) or 0
+        # A stored keypoint means the sighting was already measured or edited,
+        # so a missing height or back length is not sent again.
         sightings_missing_measurements = (
-            matching.filter(or_(
+            matching.filter(no_keypoints).filter(or_(
                 Detection.shoulder_height == None,
                 Detection.back_length == None,
             ))
@@ -7388,6 +7396,7 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             'name': cg_name,
             'sightings_with_depth': sightings_with_depth,
             'sightings_without_depth': sightings_without_depth,
+            'sightings_with_height': sightings_with_height,
             # trap_count kept as detections that would actually be processed
             'trap_count': sightings_without_depth,
             'cal_count': cal_count,
@@ -7431,6 +7440,7 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             'name': row['name'],
             'sightings_with_depth': row['sightings_with_depth'],
             'sightings_without_depth': row['sightings_without_depth'],
+            'sightings_with_height': row['sightings_with_height'],
             'trap_count': row['trap_count'],
             'cal_count': row['cal_count'],
             'cal_missing_bbox': row['cal_missing_bbox'],
@@ -7522,13 +7532,17 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
             item.get('height') is not None and float(item['height']) > 0
             for item in calibration_items
         )
-        work_filter = Detection.distance == None
-        if height_ready:
-            work_filter = or_(
-                Detection.distance == None,
+        no_keypoints = ~Detection.pose_keypoints.any()
+        height_work = and_(
+            no_keypoints,
+            or_(
                 Detection.shoulder_height == None,
                 Detection.back_length == None,
-            )
+            ),
+        )
+        work_filter = Detection.distance == None
+        if height_ready:
+            work_filter = or_(Detection.distance == None, height_work)
         det_rows = (
             _depth_matching_detection_query(survey_id, cg_id, task_ids, species_list)
             .filter(work_filter)
@@ -7544,6 +7558,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
                 Detection.distance,
                 Detection.shoulder_height,
                 Detection.back_length,
+                Detection.pose_keypoints.any(),
             )
             .distinct()
             .all()
@@ -7584,6 +7599,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
                     'known_distance': d[8],
                     'known_shoulder_height': d[9],
                     'known_back_length': d[10],
+                    'has_keypoints': bool(d[11]),
                 })
 
         if not trap_items:

@@ -244,6 +244,7 @@ def infer(
           entry for entry in known_entries
           if entry.get('download_ok', True)
           and entry.get('bbox_pixels')
+          and not entry.get('has_keypoints')
           and _known_number(entry.get('known_shoulder_height')) is None
         ]
         if need_masks:
@@ -428,6 +429,7 @@ def _download_traps(det_dir, trap_items, sourceBucket, external):
       'known_distance': item.get('known_distance'),
       'known_shoulder_height': item.get('known_shoulder_height'),
       'known_back_length': item.get('known_back_length'),
+      'has_keypoints': bool(item.get('has_keypoints')),
       'flank': item.get('flank') if item.get('flank') in ('L', 'R', 'A') else None,
     }
     bbox = item.get('bbox') or {}
@@ -508,6 +510,8 @@ def _add_height_estimates(results, trap_entries, transect_dir, scale_factor, pos
       continue
     image_path = os.path.join(transect_dir, entry['relative_path'])
     if not os.path.isfile(image_path):
+      continue
+    if entry.get('has_keypoints'):
       continue
     need_shoulder = _known_number(entry.get('known_shoulder_height')) is None
     need_back = _known_number(entry.get('known_back_length')) is None

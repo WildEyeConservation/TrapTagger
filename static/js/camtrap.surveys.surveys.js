@@ -11660,8 +11660,8 @@ function renderDepthEstimationPrimer(preview, speciesList) {
     var headers = [
         {text: 'Site', width: '10%'},
         {text: 'Camera', width: '16%'},
-        {text: 'Sightings With Distance', width: '13%'},
-        {text: 'Sightings Without Distance', width: '14%'},
+        {text: 'Sightings With Distances', width: '16%'},
+        {text: 'Sightings With Height', width: '14%'},
         {text: 'Calibration<br>Images', width: '10%'},
         {text: 'Height', width: '15%'},
         {text: 'Status', width: '22%'}
@@ -11699,19 +11699,21 @@ function renderDepthEstimationPrimer(preview, speciesList) {
             nameTd.innerHTML = cam.name
             tr.appendChild(nameTd)
 
-            var withDepthTd = document.createElement('td')
-            withDepthTd.setAttribute('style', cellStyle)
-            withDepthTd.innerHTML = (cam.sightings_with_depth != null)
-                ? cam.sightings_with_depth
-                : 0
-            tr.appendChild(withDepthTd)
-
-            var withoutDepthTd = document.createElement('td')
-            withoutDepthTd.setAttribute('style', cellStyle)
-            withoutDepthTd.innerHTML = (cam.sightings_without_depth != null)
+            var withCount = (cam.sightings_with_depth != null) ? cam.sightings_with_depth : 0
+            var withoutCount = (cam.sightings_without_depth != null)
                 ? cam.sightings_without_depth
                 : (cam.trap_count || 0)
-            tr.appendChild(withoutDepthTd)
+            var withDepthTd = document.createElement('td')
+            withDepthTd.setAttribute('style', cellStyle)
+            withDepthTd.innerHTML = withCount + ' / ' + (withCount + withoutCount)
+            tr.appendChild(withDepthTd)
+
+            var withHeightTd = document.createElement('td')
+            withHeightTd.setAttribute('style', cellStyle)
+            withHeightTd.innerHTML = (cam.sightings_with_height != null)
+                ? cam.sightings_with_height
+                : 0
+            tr.appendChild(withHeightTd)
 
             var calTd = document.createElement('td')
             var calStyle = cellStyle
