@@ -1477,7 +1477,12 @@ def genInitKeys(taggingLevel,task_id,addSkip,addRemoveFalseDetections,addMaskAre
         
         categories.extend(special_categories)
     elif '-9' in taggingLevel:
-        categories = db.session.query(Label).filter(Label.task_id==task_id).filter(~Label.children.any()).all()
+        categories = db.session.query(Label).filter(Label.task_id == task_id).filter(Label.parent_id == None).all()
+        special_categories = db.session.query(Label).filter(Label.task_id == None).filter(Label.description != 'Wrong').filter(Label.description != 'Skip')
+        if not addRemoveFalseDetections: special_categories = special_categories.filter(Label.id != GLOBALS.remove_false_detections_id)
+        if not addMaskArea: special_categories = special_categories.filter(Label.id != GLOBALS.mask_area_id)
+        special_categories = special_categories.all()
+        categories.extend(special_categories)
         addSkip = True
     elif '-2' in taggingLevel:
         categories = db.session.query(Tag).filter(Tag.task_id == task_id).all()

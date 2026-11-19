@@ -435,23 +435,23 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                         sendBoundingBack()
                     }
                     else if(drawControl==null||(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode)){
-                        if (!((isBounding||isReviewing) && event.ctrlKey)) {
-                            colour = colourBase
-                            // prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
-                            for (let leafletID in drawnItems[mapID]._layers) {
-                                drawnItems[mapID]._layers[leafletID].setStyle({color: colour}); //un-highlight all selections
-                            }
-                        }
-                    
-                        wrapRect.setStyle({color: colourSelected}); //highlight new selection
-                        prevClickBounding = {'rect': wrapRect}
-
-                        if (isReviewing) {
-                            updateDetInfo(wrapDet, mapID)
-                        }
                         if (typeof isPoseReview === 'function' && isPoseReview()) {
                             poseSelectedId = wrapDet.id
                             poseShowMeasurements(wrapDet)
+                            if (typeof posePaintBoxes === 'function') posePaintBoxes(mapID)
+                        } else {
+                            if (!((isBounding||isReviewing) && event.ctrlKey)) {
+                                colour = colourBase
+                                for (let leafletID in drawnItems[mapID]._layers) {
+                                    drawnItems[mapID]._layers[leafletID].setStyle({color: colour});
+                                }
+                            }
+                            wrapRect.setStyle({color: colourSelected});
+                            prevClickBounding = {'rect': wrapRect}
+                        }
+
+                        if (isReviewing) {
+                            updateDetInfo(wrapDet, mapID)
                         }
                     }
                     
@@ -460,17 +460,22 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             // Highlights and un-highlight when right click on bounding box
             rect.addEventListener('contextmenu', function(wrapRect, wrapDet){
                 return function() {
+                    if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose' && wrapDet.unusable) return
                     if(drawControl==null||(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode)){
-                         if (!((isBounding||isReviewing) && event.ctrlKey)) {
-                            colour = colourBase
-                            // prevClickBounding.rect.setStyle({color: colour}); //un-highlight old selection
-                            for (let leafletID in drawnItems[mapID]._layers) {
-                                drawnItems[mapID]._layers[leafletID].setStyle({color: colour}); //un-highlight all selections
+                        if (typeof isPoseReview === 'function' && isPoseReview()) {
+                            poseSelectedId = wrapDet.id
+                            poseShowMeasurements(wrapDet)
+                            if (typeof posePaintBoxes === 'function') posePaintBoxes(mapID)
+                        } else {
+                            if (!((isBounding||isReviewing) && event.ctrlKey)) {
+                                colour = colourBase
+                                for (let leafletID in drawnItems[mapID]._layers) {
+                                    drawnItems[mapID]._layers[leafletID].setStyle({color: colour});
+                                }
                             }
+                            wrapRect.setStyle({color: colourSelected});
+                            prevClickBounding = {'rect': wrapRect}
                         }
-                    
-                        wrapRect.setStyle({color: colourSelected}); //highlight new selection
-                        prevClickBounding = {'rect': wrapRect}
 
                         if (isReviewing) {
                             updateDetInfo(wrapDet, mapID)
@@ -976,6 +981,7 @@ function updateCanvas(mapID = 'map1') {
                 if (clusterPositionCircles != null) {
                     var addNext = null
                     var next_function = null
+                    var poseNav = typeof isPoseReview === 'function' && isPoseReview()
                     if (isBounding) {
                         cirNum = clusters[mapID][clusterIndex[mapID]].clusterLength
                         circlesIndex = clusters[mapID][clusterIndex[mapID]].imageIndex
@@ -1018,7 +1024,7 @@ function updateCanvas(mapID = 'map1') {
 
                     if (multiple && beginIndex != 0 && circlesIndex > 2) {
                         first = document.createElement('li')
-                        if (isBounding || isTutorial) {
+                        if (isBounding || isTutorial || poseNav) {
                             first.setAttribute('class','disabled')
                         }
                         else {
@@ -1037,7 +1043,7 @@ function updateCanvas(mapID = 'map1') {
                     for (let i=beginIndex;i<endIndex;i++) {
                         li = document.createElement('li')
                         li.innerHTML = (i+1).toString()
-                        if (!isBounding && !isTutorial) {
+                        if (!isBounding && !isTutorial && !poseNav) {
                             li.setAttribute('onclick','updateImageIndex('+(i).toString()+')')
                         }
                         paginationCircles.append(li)
@@ -1045,7 +1051,7 @@ function updateCanvas(mapID = 'map1') {
                         if (i == circlesIndex) {
                             li.setAttribute('class','active')
                         } else {
-                            if (isBounding || isTutorial) {
+                            if (isBounding || isTutorial || poseNav) {
                                 li.setAttribute('class','disabled')
                             }
                             else {
@@ -1062,7 +1068,7 @@ function updateCanvas(mapID = 'map1') {
 
                         last_index = cirNum - 1
                         last = document.createElement('li')
-                        if (isBounding || isTutorial) {
+                        if (isBounding || isTutorial || poseNav) {
                             last.setAttribute('class','disabled')
                         }
                         else {
@@ -1277,7 +1283,10 @@ function updateCanvas(mapID = 'map1') {
 function updateButtons(mapID = 'map1'){
     /** Enables/disables the next/previous image/cluster & undo buttons. */
     if (prevClusterBtn != null) {
-        if (isBounding||isClassCheck) {
+        if (typeof isPoseReview === 'function' && isPoseReview()) {
+            if (clusterIndex[mapID]==0 && imageIndex[mapID]==0) prevClusterBtn.classList.add("disabled")
+            else prevClusterBtn.classList.remove("disabled")
+        } else if (isBounding||isClassCheck) {
             if (clusterIndex[mapID]==0){
                 prevClusterBtn.classList.add("disabled")
             }else{
@@ -1313,7 +1322,8 @@ function updateButtons(mapID = 'map1'){
     if (nextImageBtn != null) {
         if (clusters[mapID][clusterIndex[mapID]] != null) {
             if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-                if (imageIndex[mapID]==clusters[mapID][clusterIndex[mapID]].images.length-1){
+                var poseCanAdvance = typeof isPoseReview === 'function' && isPoseReview()
+                if (!poseCanAdvance && imageIndex[mapID]==clusters[mapID][clusterIndex[mapID]].images.length-1){
                     nextImageBtn.classList.add("disabled")
                     if (isStaticCheck && staticCheckPage[clusters[mapID][clusterIndex[mapID]].id].next_page!=null){
                         nextImageBtn.classList.remove("disabled")
@@ -1761,7 +1771,7 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
 
 function nextImage(mapID = 'map1'){
     /** Switches to the next image in the cluster if its available. */
-    if (mapID === 'map1' && typeof isPoseReview === 'function' && isPoseReview() && typeof poseSubmitImage === 'function' && finishedDisplaying[mapID] == true && !editingEnabled && clusters[mapID] && clusters[mapID][clusterIndex[mapID]] && imageIndex[mapID] < clusters[mapID][clusterIndex[mapID]].images.length - 1 && ((modalActive == false && modalActive2 == false) || (typeof modalAlert !== 'undefined' && modalAlert.is(':visible')))) {
+    if (mapID === 'map1' && typeof isPoseReview === 'function' && isPoseReview() && typeof poseSubmitImage === 'function' && finishedDisplaying[mapID] == true && !editingEnabled && clusters[mapID] && clusters[mapID][clusterIndex[mapID]] && ['-99','-101','-782'].indexOf(String(clusters[mapID][clusterIndex[mapID]].id)) === -1 && ((modalActive == false && modalActive2 == false) || (typeof modalAlert !== 'undefined' && modalAlert.is(':visible')))) {
         poseSubmitImage()
         return
     }
@@ -3186,7 +3196,7 @@ function prepMap(mapID = 'map1') {
                             setClusterIDRectOptions(wrapMapID)
                             clusterIDMapPrep(wrapMapID)
                         } else if (isTagging && !isTutorial && !isIDing) {
-                            if (taggingLevel.includes('-2')) {
+                            if (taggingLevel.includes('-2') || taggingLevel.includes('-9')) {
                                 fetchLabelHierarchy()
                             }
                             setRectOptions(wrapMapID)
@@ -4103,9 +4113,21 @@ document.onkeyup = function(event){
             if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'species' && typeof poseHotkey === 'function') {
                 if (poseHotkey(event.key.toLowerCase())) return
             }
-            if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose' && event.key.toLowerCase() === 'u' && typeof poseHotkeyUnusable === 'function') {
-                poseHotkeyUnusable()
-                return
+            if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') {
+                var poseKey = event.key.toLowerCase()
+                if (poseKey === 'control' && typeof poseSubmitImage === 'function') {
+                    poseSubmitImage()
+                    return
+                }
+                if (poseKey === 'u' && typeof poseHotkeyUnusable === 'function') {
+                    poseHotkeyUnusable()
+                    return
+                }
+                if (poseKey === '0' && typeof poseSkipCluster === 'function') {
+                    poseSkipCluster()
+                    return
+                }
+                if (poseKey.length === 1 && ((poseKey >= '1' && poseKey <= '9') || (poseKey >= 'a' && poseKey <= 'z') || poseKey === ' ' || poseKey === '-')) return
             }
             switch (event.key.toLowerCase()){
                 case ('0'):assignLabel(hotkeys[0])
@@ -4208,16 +4230,21 @@ document.onkeyup = function(event){
                 }
                     break;
     
-                case 'alt': nextCluster()
+                case 'alt':
+                    if (typeof isPoseReview === 'function' && isPoseReview()) nextImage()
+                    else nextCluster()
                     break;
                 case '~':
                 case '`':
-                    prevCluster()
+                    if (typeof isPoseReview === 'function' && isPoseReview() && typeof poseBack === 'function') poseBack()
+                    else prevCluster()
                     break;
     
                 case 'arrowright': nextImage()
                     break;
-                case 'arrowleft': prevImage()
+                case 'arrowleft':
+                    if (typeof isPoseReview === 'function' && isPoseReview() && typeof poseBack === 'function') poseBack()
+                    else prevImage()
                     break;
                 case 'arrowup': 
                     if (taggingLevel=='-3'||taggingLevel=='-8') {

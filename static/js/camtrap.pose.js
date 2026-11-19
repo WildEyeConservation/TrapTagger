@@ -15,6 +15,14 @@ var poseDeleteSaved = false
 var poseKeepView = false
 var poseSubmitting = false
 var poseHotkeyNames = []
+var POSE_COLOURS = [
+    {fill: '#1A69DF', line: '#A9C8F5', edge: '#0B3F86'},
+    {fill: '#2E8B57', line: '#A8D5B5', edge: '#145C32'},
+    {fill: '#7B3FA0', line: '#D4B3E8', edge: '#4A2266'},
+    {fill: '#0E8A8A', line: '#A6DEDE', edge: '#085858'},
+    {fill: '#C43B6E', line: '#F0B3C8', edge: '#7A2044'},
+    {fill: '#B8860B', line: '#E8D49A', edge: '#6E5006'}
+]
 var POSE_EDGES = [
     ['left_eye', 'nose'], ['right_eye', 'nose'], ['nose', 'neck'], ['neck', 'tail'],
     ['neck', 'left_shoulder'], ['left_shoulder', 'left_elbow'], ['left_elbow', 'left_front_paw'],
@@ -65,6 +73,7 @@ function buildPoseReviewPanel(res) {
     divBtns.appendChild(mode)
 
     var flankLabel = document.createElement('div')
+    flankLabel.id = 'poseFlankLabel'
     flankLabel.innerHTML = 'Flank Selection'
     flankLabel.style.marginTop = '8px'
     flankLabel.style.borderTop = '1px solid #3c4a59'
@@ -74,6 +83,7 @@ function buildPoseReviewPanel(res) {
     divBtns.appendChild(flankLabel)
 
     var flankRow = document.createElement('div')
+    flankRow.id = 'poseFlankRow'
     flankRow.style.margin = '4px 0 8px 0'
     ;['Left', 'Right'].forEach(function(name) {
         var button = document.createElement('button')
@@ -174,6 +184,47 @@ function buildPoseReviewPanel(res) {
 
     switchToLabel = false
     poseUpdateDrawTool()
+    poseLayoutNav()
+}
+
+function poseLayoutNav() {
+    ;['backImage', 'prevImage', 'forwardImage'].forEach(function(id) {
+        var button = document.getElementById(id)
+        if (button && button.parentElement) button.parentElement.style.display = 'none'
+    })
+    var back = document.getElementById('prevCluster')
+    var next = document.getElementById('nextImage')
+    if (back) {
+        back.innerHTML = 'Back'
+        back.onclick = function() { poseBack() }
+        if (back.parentElement) back.parentElement.className = 'col-lg-3'
+    }
+    if (next) {
+        next.innerHTML = 'Next'
+        next.className = 'btn btn-primary btn-block'
+        next.onclick = function() { nextImage() }
+        if (next.parentElement) next.parentElement.className = 'col-lg-3'
+    }
+}
+
+function poseBack() {
+    if (!isPoseReview() || poseSubmitting) return
+    if (typeof editingEnabled !== 'undefined' && editingEnabled) return
+    if (typeof finishedDisplaying !== 'undefined' && finishedDisplaying['map1'] != true) return
+    var cluster = clusters['map1'] && clusters['map1'][clusterIndex['map1']]
+    if (!cluster) return
+    poseSave(false)
+    if (imageIndex['map1'] > 0) {
+        imageIndex['map1'] -= 1
+        update('map1')
+        return
+    }
+    if (clusterIndex['map1'] <= 0) return
+    var previous = clusters['map1'][clusterIndex['map1'] - 1]
+    if (!previous || ['-99', '-101', '-782'].indexOf(String(previous.id)) !== -1) return
+    clusterIndex['map1'] -= 1
+    imageIndex['map1'] = previous.images && previous.images.length ? previous.images.length - 1 : 0
+    update('map1')
 }
 
 function poseRefresh() {
@@ -186,8 +237,12 @@ function poseRefresh() {
     if (skip) skip.style.display = speciesMode ? 'none' : 'block'
     var measurements = document.getElementById('poseMeasurements')
     var unusable = document.getElementById('poseUnusableButton')
+    var flankLabel = document.getElementById('poseFlankLabel')
+    var flankRow = document.getElementById('poseFlankRow')
     if (measurements) measurements.style.display = speciesMode ? 'none' : 'block'
     if (unusable) unusable.style.display = speciesMode ? 'none' : 'block'
+    if (flankLabel) flankLabel.style.display = speciesMode ? 'none' : 'block'
+    if (flankRow) flankRow.style.display = speciesMode ? 'none' : 'block'
     poseKeepView = true
     addedDetections['map1'] = false
     addDetections('map1')
@@ -370,6 +425,40 @@ function poseClearSelection() {
     poseShowMeasurements(null)
 }
 
+function poseColourFor(detection) {
+    var image = poseCurrentImage()
+    var index = 0
+    if (image && detection) {
+        for (var i = 0; i < image.detections.length; i++) {
+            if (String(image.detections[i].id) === String(detection.id)) {
+                index = i
+                break
+            }
+        }
+    }
+    return POSE_COLOURS[index % POSE_COLOURS.length]
+}
+
+function posePaintBoxes(mapID) {
+    if (!isPoseReview() || !drawnItems[mapID]) return
+    var image = poseCurrentImage()
+    if (!image) return
+    for (var leafletID in drawnItems[mapID]._layers) {
+        var layer = drawnItems[mapID]._layers[leafletID]
+        var detection = null
+        for (var d = 0; d < image.detections.length; d++) {
+            if (String(image.detections[d].id) === String(dbDetIds[mapID][leafletID])) detection = image.detections[d]
+        }
+        if (!detection) continue
+        var selected = String(detection.id) === String(poseSelectedId)
+        if (detection.unusable) {
+            layer.setStyle({color: '#DF691A', weight: selected ? 5 : 4, dashArray: '6 4'})
+            continue
+        }
+        layer.setStyle({color: selected ? colourSelected : colourBase, weight: selected ? 5 : 3, dashArray: null})
+    }
+}
+
 function poseSelectedDetection() {
     var image = poseCurrentImage()
     if (!image || poseSelectedId == null) return null
@@ -394,8 +483,12 @@ function poseAfterDetections(mapID) {
         for (var d = 0; d < image.detections.length; d++) {
             if (String(image.detections[d].id) === String(dbDetIds[mapID][leafletID])) detectionForBox = image.detections[d]
         }
-        if (detectionForBox && detectionForBox.unusable) {
-            layer.setStyle({color: '#DF691A', weight: 4, dashArray: '6 4'})
+        if (poseReviewMode === 'pose' && detectionForBox && detectionForBox.unusable && layer._showContextMenu) {
+            layer.off('contextmenu', layer._showContextMenu, layer)
+            layer.on('contextmenu', function(event) {
+                if (event.originalEvent) L.DomEvent.stop(event.originalEvent)
+                if (map[mapID].contextmenu) map[mapID].contextmenu.hide()
+            })
         }
         layer.on('click', function(id) {
             return function() {
@@ -404,6 +497,7 @@ function poseAfterDetections(mapID) {
             }
         }(dbDetIds[mapID][leafletID]))
     }
+    posePaintBoxes(mapID)
     if (poseReviewMode !== 'pose') return
     poseBindModes(mapID)
     poseMarkers = L.layerGroup().addTo(map[mapID])
@@ -546,6 +640,7 @@ function poseCalculatedShoulder(detection, byName) {
 }
 
 function poseDrawSkeleton(mapID, detection, points) {
+    var colour = poseColourFor(detection)
     var byName = {}
     for (var i = 0; i < points.length; i++) byName[points[i].name] = points[i]
     var edges = POSE_EDGES.slice()
@@ -559,7 +654,7 @@ function poseDrawSkeleton(mapID, detection, points) {
         if (!byName[edge[0]] || !byName[edge[1]]) return
         poseMarkers.addLayer(L.polyline(
             [posePointLatLng(mapID, byName[edge[0]]), posePointLatLng(mapID, byName[edge[1]])],
-            {color: '#A9C8F5', weight: 2, interactive: false}
+            {color: colour.line, weight: 2, interactive: false}
         ))
     })
 }
@@ -579,11 +674,12 @@ function poseUpdateLines(mapID) {
 }
 
 function poseAddMarker(mapID, detection, point) {
+    var colour = poseColourFor(detection)
     var marker = L.circleMarker(posePointLatLng(mapID, point), {
         radius: 6,
-        color: '#0B3F86',
+        color: colour.edge,
         weight: 1,
-        fillColor: '#1A69DF',
+        fillColor: colour.fill,
         fillOpacity: 1
     })
     marker.bindTooltip(point.name, {permanent: false, direction: 'top'})
@@ -616,7 +712,7 @@ function poseAddMarker(mapID, detection, point) {
     marker.on('click', function() {
         if (!poseDeleteMode) return
         point.pendingDelete = !point.pendingDelete
-        marker.setStyle({fillColor: point.pendingDelete ? '#888888' : '#1A69DF', fillOpacity: point.pendingDelete ? 0.35 : 1})
+        marker.setStyle({fillColor: point.pendingDelete ? '#888888' : poseColourFor(detection).fill, fillOpacity: point.pendingDelete ? 0.35 : 1})
     })
     poseMarkers.addLayer(marker)
 }
@@ -648,7 +744,7 @@ function poseClearDeleteMarks() {
         (image.detections[i].keypoints || []).forEach(function(point) { point.pendingDelete = false })
     }
     poseMarkers.eachLayer(function(layer) {
-        if (layer.posePoint) layer.setStyle({fillColor: '#1A69DF', fillOpacity: 1})
+        if (layer.posePoint) layer.setStyle({fillColor: poseColourFor(layer.poseDetection).fill, fillOpacity: 1})
     })
 }
 
@@ -666,7 +762,7 @@ function poseMapContext(event) {
             break
         }
     }
-    if (!detection) return
+    if (!detection || detection.unusable) return
     L.DomEvent.preventDefault(event)
     var present = {}
     ;(detection.keypoints || []).forEach(function(point) { present[point.name] = true })
@@ -752,6 +848,7 @@ function poseCornerCursors() {
 }
 
 function poseCreatePoint(detection, name, x, y) {
+    if (!detection || detection.unusable) return
     if (!detection.keypoints) detection.keypoints = []
     detection.keypoints.push({name: name, x: x, y: y, score: null, source: 'user'})
     poseMarkPointsPending(detection)
@@ -763,6 +860,25 @@ function poseCreatePoint(detection, name, x, y) {
 function poseSetSpecies(label) {
     var detection = poseSelectedDetection()
     if (!detection) return
+    var mapID = 'map1'
+    if (drawnItems[mapID]) {
+        for (var leafletID in drawnItems[mapID]._layers) {
+            if (String(dbDetIds[mapID][leafletID]) !== String(detection.id)) continue
+            var layer = drawnItems[mapID]._layers[leafletID]
+            if (!layer.getTooltip()) {
+                layer.bindTooltip(label, {permanent: true, direction: 'center'})
+                var bounds = layer.getBounds()
+                var center = bounds.getCenter()
+                var bottom = L.latLng(bounds.getSouth(), center.lng)
+                var offsetY = map[mapID].latLngToContainerPoint(center).y - map[mapID].latLngToContainerPoint(bottom).y
+                layer.getTooltip().options.offset = [0, offsetY]
+                layer.getTooltip().options.opacity = 0.8
+            } else {
+                layer.setTooltipContent(label)
+            }
+            if (typeof toolTipsOpen === 'undefined' || toolTipsOpen) layer.openTooltip()
+        }
+    }
     submitSightingChanges({ids: [Number(detection.id)], label: label}, 'label')
 }
 
