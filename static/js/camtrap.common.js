@@ -432,6 +432,9 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                     // Send to bounding boxes back when editing sightings (bounding-box correction)
                     if (sendBackBoundingMode) {
                         wrapRect.bringToBack()
+                        if (typeof isPoseReview === 'function' && isPoseReview() && typeof poseSendDetectionToBack === 'function') {
+                            poseSendDetectionToBack(wrapDet)
+                        }
                         sendBoundingBack()
                     }
                     else if(drawControl==null||(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode)){

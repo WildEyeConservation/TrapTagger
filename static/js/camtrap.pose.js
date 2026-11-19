@@ -426,17 +426,45 @@ function poseClearSelection() {
 }
 
 function poseColourFor(detection) {
-    var image = poseCurrentImage()
-    var index = 0
-    if (image && detection) {
-        for (var i = 0; i < image.detections.length; i++) {
-            if (String(image.detections[i].id) === String(detection.id)) {
-                index = i
-                break
+    if (!detection) return POSE_COLOURS[0]
+    if (detection._poseColourIndex == null) {
+        var image = poseCurrentImage()
+        var index = 0
+        if (image) {
+            for (var i = 0; i < image.detections.length; i++) {
+                if (String(image.detections[i].id) === String(detection.id)) {
+                    index = i
+                    break
+                }
             }
         }
+        detection._poseColourIndex = index
     }
-    return POSE_COLOURS[index % POSE_COLOURS.length]
+    return POSE_COLOURS[detection._poseColourIndex % POSE_COLOURS.length]
+}
+
+function poseSendDetectionToBack(detection) {
+    var image = poseCurrentImage()
+    if (!image || !detection) return
+    var index = -1
+    for (var i = 0; i < image.detections.length; i++) {
+        if (String(image.detections[i].id) === String(detection.id)) {
+            index = i
+            break
+        }
+    }
+    if (index > 0) {
+        image.detections.splice(index, 1)
+        image.detections.unshift(detection)
+    }
+    if (!poseMarkers) return
+    var own = []
+    poseMarkers.eachLayer(function(layer) {
+        if (layer.poseDetection && String(layer.poseDetection.id) === String(detection.id)) own.push(layer)
+    })
+    own.forEach(function(layer) {
+        if (layer.bringToBack) layer.bringToBack()
+    })
 }
 
 function posePaintBoxes(mapID) {
@@ -452,7 +480,7 @@ function posePaintBoxes(mapID) {
         if (!detection) continue
         var selected = String(detection.id) === String(poseSelectedId)
         if (detection.unusable) {
-            layer.setStyle({color: '#DF691A', weight: selected ? 5 : 4, dashArray: '6 4'})
+            layer.setStyle({color: selected ? colourSelected : '#DF691A', weight: selected ? 5 : 4, dashArray: '6 4'})
             continue
         }
         layer.setStyle({color: selected ? colourSelected : colourBase, weight: selected ? 5 : 3, dashArray: null})
@@ -652,10 +680,12 @@ function poseDrawSkeleton(mapID, detection, points) {
     }
     edges.forEach(function(edge) {
         if (!byName[edge[0]] || !byName[edge[1]]) return
-        poseMarkers.addLayer(L.polyline(
+        var line = L.polyline(
             [posePointLatLng(mapID, byName[edge[0]]), posePointLatLng(mapID, byName[edge[1]])],
             {color: colour.line, weight: 2, interactive: false}
-        ))
+        )
+        line.poseDetection = detection
+        poseMarkers.addLayer(line)
     })
 }
 
@@ -752,17 +782,11 @@ function poseMapContext(event) {
     if (!isPoseReview() || poseReviewMode !== 'pose') return
     var image = poseCurrentImage()
     if (!image || mapWidth['map1'] == null) return
+    var detection = poseSelectedDetection()
+    if (!detection || detection.unusable) return
     var x = event.latlng.lng / mapWidth['map1']
     var y = event.latlng.lat / mapHeight['map1']
-    var detection = null
-    for (var i = 0; i < image.detections.length; i++) {
-        var box = image.detections[i]
-        if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) {
-            detection = box
-            break
-        }
-    }
-    if (!detection || detection.unusable) return
+    if (x < detection.left || x > detection.right || y < detection.top || y > detection.bottom) return
     L.DomEvent.preventDefault(event)
     var present = {}
     ;(detection.keypoints || []).forEach(function(point) { present[point.name] = true })
