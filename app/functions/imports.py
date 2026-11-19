@@ -5066,9 +5066,10 @@ def parse_calibration_filename(filename):
     second number is the height. Both take an optional decimal; leading zeros drop via float;
     extension .jpg/.jpeg; values > 0. Filename itself may contain other text.
 
-    The two numbers must be separated by characters that cannot form part of a number
-    (eg. 10_2.jpg -> 10m at 2m). A decimal point is not a separator, so extra digits after
-    a second decimal are still ignored (e.g. 10.5.2 -> 10.5m, no height).
+    Each number takes at most one decimal, so a further dot ends the number and may
+    separate the two values (10.5.2.jpg -> 10.5m at 2m, 10m.2m.jpg -> 10m at 2m).
+    A single decimal stays with the distance (10.2.jpg -> 10.2m, no height). Any later
+    numbers are ignored.
     '''
     if not filename or not re.search(r'\.jpe?g$', filename, re.I):
         return None, None
@@ -5084,19 +5085,13 @@ def parse_calibration_filename(filename):
         return None, None
 
     height = None
-    previous_end = matches[0].end()
-    for match in matches[1:]:
-        separator = stem[previous_end:match.start()]
-        previous_end = match.end()
-        if '.' in separator:
-            continue
+    if len(matches) > 1:
         try:
-            value = float(match.group(0))
+            value = float(matches[1].group(0))
         except ValueError:
-            break
-        if value > 0:
+            value = None
+        if value is not None and value > 0:
             height = value
-        break
 
     return distance, height
 

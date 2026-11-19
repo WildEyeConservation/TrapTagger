@@ -3600,6 +3600,9 @@ def getDetailedTaskStatus(task_id):
             'Distance Estimation': [
                 'Sightings With Distances'
             ],
+            'Keypoints': [
+                'Checked Sightings'
+            ],
             'Individual ID': [
                 'Cluster-Level',
                 'Inter-Cluster',
@@ -3635,7 +3638,8 @@ def getDetailedTaskStatus(task_id):
                 reply['AI Check'] = {}
                 reply['Informational Tagging'] = {}
                 reply['Sighting Correction'] = {}
-                reply['Distance Estimation'] = {}
+                reply['Morphometrics'] = {}
+                reply['Keypoints'] = {}
                 reply['Individual ID'] = {}
                 
                 if label_id==GLOBALS.vhl_id:
@@ -3686,11 +3690,30 @@ def getDetailedTaskStatus(task_id):
                         reply['Sighting Correction']['Checked Sightings'] = '-'
 
                     # Distance Estimation — cached sightings with Detection.distance
-                    if distance_count and sighting_count != 0:
-                        depth_perc = round((distance_count/sighting_count)*100,2)
-                        reply['Distance Estimation']['Sightings With Distances'] = str(distance_count) + '/' + str(sighting_count) + ' (' + str(depth_perc) + '%)'
+                    if sighting_count:
+                        distance_filled = distance_count or 0
+                        depth_perc = round((distance_filled/sighting_count)*100,2)
+                        reply['Morphometrics']['Sightings With Distances'] = str(distance_filled) + '/' + str(sighting_count) + ' (' + str(depth_perc) + '%)'
                     else:
-                        reply['Distance Estimation']['Sightings With Distances'] = '-'
+                        reply['Morphometrics']['Sightings With Distances'] = '-'
+
+                    if sighting_count:
+                        keypoints_checked = db.session.query(func.count(distinct(Labelgroup.id)))\
+                                            .join(Detection)\
+                                            .join(Image)\
+                                            .join(Cluster, Image.clusters)\
+                                            .filter(Labelgroup.task_id==task_id)\
+                                            .filter(Labelgroup.labels.any(Label.id==label_id))\
+                                            .filter(Cluster.task_id==task_id)\
+                                            .filter(Detection.pose_checked==True)\
+                                            .filter(Detection.static==False)\
+                                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+                                            .scalar() or 0
+                        keypoints_perc = round((keypoints_checked/sighting_count)*100, 2)
+                        reply['Keypoints']['Checked Sightings'] = str(keypoints_checked) + '/' + str(sighting_count) + ' (' + str(keypoints_perc) + '%)'
+                    else:
+                        reply['Keypoints']['Checked Sightings'] = '-'
 
                     # Species Annotation Status
                     if label.parent == None:
@@ -3788,7 +3811,8 @@ def getDetailedTaskStatus(task_id):
                     # reply['AI Check']['Potential Clusters'] = '-'
                     reply['Informational Tagging']['Tagged'] = '-'
                     reply['Sighting Correction']['Checked Sightings'] = '-'
-                    reply['Distance Estimation']['Sightings With Distances'] = '-'
+                    reply['Morphometrics']['Sightings With Distances'] = '-'
+                    reply['Keypoints']['Checked Sightings'] = '-'
                     reply['Individual ID']['Cluster-Level'] = '-'
                     reply['Individual ID']['Inter-Cluster'] = '-'
                     reply['Individual ID']['Exhaustive'] = '-'

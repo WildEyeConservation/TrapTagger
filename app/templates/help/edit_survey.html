@@ -78,16 +78,16 @@ limitations under the License. -->
         and are required if you wish to run distance estimation on your sightings. You can work with them in three ways:
         <ul>
             <li>
-                Calibration Summary: See one row per camera, with its site, its number of calibration images, the distances they cover, and the camera height recorded against them.
-                Select any number of cameras to apply a single camera height to all of their calibration images at once, or to remove the heights again.
+                Calibration Summary: See one row per camera, with its site, its number of calibration images, the distances they cover, and the height of the person in those images.
+                Select any number of cameras to apply one person height to all of their calibration images, to remove those heights, or to stage every calibration image on the selected cameras for deletion.
+                Cancel Deletions unstages the selected cameras. Clear Staged Deletions unstages every camera. Nothing is removed until you save the survey.
             </li>
             <li>
-                Edit Calibration Images: View the calibration images for each camera, adjust the bounding box around the calibration object, correct the recorded distance or camera height, or delete the calibration images.
+                Edit Calibration Images: View the calibration images for each camera, adjust the bounding box around the person, correct the recorded distance or the person's height, or stage the current image for deletion.
             </li>
             <li>
                 Upload Calibration Images: Add new calibration images for one camera at a time, or in bulk by selecting a folder tree that contains calibration folders matched to your existing cameras.
-                Filenames must contain a distance in metres, optionally followed by the camera height in metres (for example 5.jpg, 10m.jpg, cal_5.5m.jpg, or 10m_2m.jpg). The two numbers must be
-                separated by characters that cannot form part of a number, such as an underscore. For a single-camera upload the folder itself can be named anything; for bulk upload,
+                Filenames must contain a distance in metres, optionally followed by the person's height in metres (for example 5.jpg, 10m.jpg, cal_5.5m.jpg, 10m_2m.jpg, or 10.5.2.jpg). Each number may include one decimal, and a dot may separate the two numbers, so 10.5.2.jpg is 10.5 m at 2 m. A single decimal such as 10.2.jpg is the distance only. For a single-camera upload the folder itself can be named anything; for bulk upload,
                 folders whose names contain "calibration" (case-insensitive) are detected automatically under each camera.
                 If a filename repeats a distance this camera already has and includes a different height, only that height is updated — the existing image is kept.
                 A repeated distance with no height in the filename is left unchanged, and a second image at the same distance in one folder is ignored.
@@ -97,9 +97,9 @@ limitations under the License. -->
     </li>
 
     <li>
-        Distance Estimation: Estimate the distance of animal detections from the camera using your calibration images and species-labelled trap detections. Select an annotation set whose species
+        Morphometrics: Estimate the distance, shoulder height, and back length of animal detections using your calibration images and species-labelled trap detections. Select an annotation set whose species
         labelling is complete, choose one or more species to process, review the launch preview, and then launch distance estimation. Cameras need suitable calibration images before they can be
-        processed. The preview shows each camera's calibration height. A camera with at least one height is included in height estimation automatically; a camera with none is estimated for distance only.
+        processed. The preview shows the person's height recorded on each camera's calibration images. A camera with at least one height is included in height estimation automatically; a camera with none is estimated for distance only.
         Different heights on the same camera are allowed and are noted in the preview. The resulting detection distances are what enable Distance Sampling and TTE Abundance analysis types in the Analysis section. Please note that launching distance estimation will process your survey,
         so any unsaved survey edits should be saved or discarded first.
     </li>

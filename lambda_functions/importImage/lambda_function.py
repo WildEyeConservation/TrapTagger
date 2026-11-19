@@ -69,7 +69,7 @@ def calibration_camera_relative_path(path, calibration_code):
     return '/'.join(dirparts[2:cal_idx])
 
 # First decimal number in the stem (digits with optional fractional part).
-# Extra digits after a second decimal are ignored (e.g. 10.5.2 -> 10.5).
+# One decimal stays with that number (10.5.2 -> 10.5). This function returns the distance only.
 CALIBRATION_DISTANCE_NUMBER_RE = re.compile(r'\d+(?:\.\d+)?')
 
 def parse_calibration_distance_filename(filename):

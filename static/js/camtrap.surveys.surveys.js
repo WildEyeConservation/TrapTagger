@@ -5074,17 +5074,24 @@ function buildStatusTable(labels,headings) {
     table.classList.add('table-bordered')
     tableDiv.appendChild(table)
 
-    // Slightly shrink Label and give Informational Tagging a bit more room; other columns share the rest.
+    // Keep the table on one screen. The named summary and species columns are narrower so Keypoints Checked fits.
+    var columnWidths = {
+        'Summary': {'Clusters': '5%', 'Images': '4%', 'Sightings': '5.5%', 'Individuals': '6%'},
+        'Species Annotation': {'Tagged': '4.2%', 'Complete': '5.5%'},
+        'Informational Tagging': {'Tagged': '7%'},
+        'Morphometrics': {'Sightings With Distances': '8%'},
+        'Keypoints': {'Checked Sightings': '7%'}
+    }
     colgroup = document.createElement('colgroup')
     table.appendChild(colgroup)
     col = document.createElement('col')
-    col.style.width = '15%'
+    col.style.width = '13%'
     colgroup.appendChild(col)
     for (let heading in headings) {
         for (let i=0;i<headings[heading].length;i++) {
             col = document.createElement('col')
-            if (heading=='Informational Tagging') {
-                col.style.width = '8%'
+            if (columnWidths[heading] && columnWidths[heading][headings[heading][i]]) {
+                col.style.width = columnWidths[heading][headings[heading][i]]
             }
             colgroup.appendChild(col)
         }
@@ -5097,7 +5104,7 @@ function buildStatusTable(labels,headings) {
     tableRow = document.createElement('tr')
     tableCol = document.createElement('th')
     tableCol.setAttribute('scope','col')
-    tableCol.setAttribute('style','border-bottom: 1px solid white;width: 15%')
+    tableCol.setAttribute('style','border-bottom: 1px solid white;width: 13%')
     tableRow.appendChild(tableCol)
 
     for (let heading in headings) {
@@ -5118,7 +5125,7 @@ function buildStatusTable(labels,headings) {
     tableRow.setAttribute('class','stripe')
     tableCol = document.createElement('th')
     tableCol.setAttribute('scope','col')
-    tableCol.setAttribute('style','border-bottom: 1px solid white;width: 15%')
+    tableCol.setAttribute('style','border-bottom: 1px solid white;width: 13%')
     tableCol.innerHTML = 'Label'
     tableRow.appendChild(tableCol)
 
@@ -7916,7 +7923,7 @@ function buildCalibrationImages() {
     label.innerHTML = 'Calibration Summary'
     radio.appendChild(label)
     document.getElementById('summaryCalImages').addEventListener('click', () => {
-        document.getElementById('calModeDescription').innerHTML = '<i>Review your cameras\' calibration images, and apply or remove camera heights in bulk.</i>'
+        document.getElementById('calModeDescription').innerHTML = '<i>Review calibration images, set the person\'s height, or stage cameras for deletion.</i>'
         selectedCalMode = 'summary'
         resetCalibrationView()
         buildCalSummaryMode()
@@ -8038,8 +8045,9 @@ function parseCalUploadNumbers(filename) {
     /**
      * Returns {distance, height} in metres for a calibration filename, or null if invalid.
      * The first number in the stem is the distance, and an optional second is the height.
-     * The two must be separated by characters that cannot form part of a number, so a
-     * decimal point is not a separator (10.5.2.jpg is 10.5m with no height).
+     * Each number takes at most one decimal, so a further dot ends the number and may
+     * separate the two values (10.5.2.jpg is 10.5m at 2m). A single decimal stays with
+     * the distance (10.2.jpg is 10.2m with no height). Any later numbers are ignored.
      */
     if (!isCalUploadJpeg(filename)) return null
     var stem = filename.replace(/\.[^/.]+$/, '')
@@ -8047,24 +8055,15 @@ function parseCalUploadNumbers(filename) {
     var match
     CAL_UPLOAD_DISTANCE_NUMBER_RE.lastIndex = 0
     while ((match = CAL_UPLOAD_DISTANCE_NUMBER_RE.exec(stem)) !== null) {
-        matches.push({
-            value: parseFloat(match[0]),
-            start: match.index,
-            end: match.index + match[0].length
-        })
+        matches.push(parseFloat(match[0]))
     }
     if (matches.length === 0) return null
-    var distance = matches[0].value
+    var distance = matches[0]
     if (isNaN(distance) || distance <= 0) return null
 
     var height = null
-    var previousEnd = matches[0].end
-    for (var i = 1; i < matches.length; i++) {
-        var separator = stem.substring(previousEnd, matches[i].start)
-        previousEnd = matches[i].end
-        if (separator.indexOf('.') !== -1) continue
-        if (!isNaN(matches[i].value) && matches[i].value > 0) height = matches[i].value
-        break
+    if (matches.length > 1 && !isNaN(matches[1]) && matches[1] > 0) {
+        height = matches[1]
     }
 
     return {distance: distance, height: height}
@@ -8077,7 +8076,7 @@ function parseCalUploadDistance(filename) {
 }
 
 function parseCalUploadHeight(filename) {
-    /** Optional second number in the stem — the camera height in metres. */
+    /** Optional second number in the stem — the person's height in metres. */
     var parsed = parseCalUploadNumbers(filename)
     return parsed ? parsed.height : null
 }
@@ -8137,7 +8136,7 @@ function validateCalUploadFiles(files) {
         if (jpegCount > 0) {
             return {
                 valid: false,
-                message: 'No valid calibration images found. Filenames must contain a distance in metres, optionally followed by the camera height in metres (e.g. 5.jpg, 10m.jpg, board_5.5m.jpg, 10m_2m.jpg).'
+                message: 'No valid calibration images found. Filenames must contain a distance in metres, optionally followed by the person\'s height in metres (e.g. 5.jpg, 10m.jpg, board_5.5m.jpg, 10m_2m.jpg, 10.5.2.jpg).'
             }
         }
         return { valid: false, message: 'No valid calibration JPEGs found in the selected folder.' }
@@ -9323,7 +9322,7 @@ function buildCalUploadMode() {
     col1.appendChild(h5folder)
     var descFolder = document.createElement('div')
     descFolder.setAttribute('style', 'font-size: 80%; margin-bottom: 6px')
-    descFolder.innerHTML = '<i>Select any folder of JPEGs whose filenames contain a distance in metres, optionally followed by the camera height in metres (e.g. 5.jpg, 10m.jpg, board_5.5m.jpg, 10m_2m.jpg). The folder itself can be named anything. Only files directly in that folder are used.</i>'
+    descFolder.innerHTML = '<i>Select a folder of JPEGs. Filenames need a distance in metres, and may include the person\'s height (e.g. 5.jpg, 10m_2m.jpg, 10.5.2.jpg). Only files in that folder are used.</i>'
     col1.appendChild(descFolder)
 
     var folderInput = document.createElement('input')
@@ -9918,12 +9917,12 @@ function buildCalSummaryMode() {
 
     var h5 = document.createElement('h5')
     h5.setAttribute('style', 'margin-bottom: 2px')
-    h5.innerHTML = 'Camera Height'
+    h5.innerHTML = 'Height'
     panelDiv.appendChild(h5)
 
     var desc = document.createElement('div')
     desc.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
-    desc.innerHTML = '<i>The height (m) above the ground at which your cameras were mounted. Applies to every calibration image of the selected cameras.</i>'
+    desc.innerHTML = '<i>Person\'s height (m), applied to every calibration image of the selected cameras.</i>'
     panelDiv.appendChild(desc)
 
     var heightInput = document.createElement('input')
@@ -9973,8 +9972,40 @@ function buildCalSummaryMode() {
     var statusMsg = document.createElement('div')
     statusMsg.id = 'calSummaryStatusMsg'
     statusMsg.setAttribute('style', 'font-size: 80%; color: grey; margin-top: 6px')
-    statusMsg.innerHTML = '<i>Changes are saved when you click Save Changes.</i>'
     panelDiv.appendChild(statusMsg)
+
+    var deleteBtn = document.createElement('button')
+    deleteBtn.setAttribute('type', 'button')
+    deleteBtn.id = 'calSummaryDeleteImagesBtn'
+    deleteBtn.classList.add('btn', 'btn-danger', 'btn-block', 'btn-sm')
+    deleteBtn.setAttribute('style', 'margin-top: 8px')
+    deleteBtn.innerHTML = 'Delete Images'
+    panelDiv.appendChild(deleteBtn)
+    deleteBtn.addEventListener('click', function() {
+        stageCalSummaryDeletion()
+    })
+
+    var cancelDeleteBtn = document.createElement('button')
+    cancelDeleteBtn.setAttribute('type', 'button')
+    cancelDeleteBtn.id = 'calSummaryCancelDeleteBtn'
+    cancelDeleteBtn.classList.add('btn', 'btn-info', 'btn-block', 'btn-sm')
+    cancelDeleteBtn.setAttribute('style', 'margin-top: 6px')
+    cancelDeleteBtn.innerHTML = 'Cancel Deletions'
+    panelDiv.appendChild(cancelDeleteBtn)
+    cancelDeleteBtn.addEventListener('click', function() {
+        cancelCalSummaryDeletion()
+    })
+
+    var clearDeleteBtn = document.createElement('button')
+    clearDeleteBtn.setAttribute('type', 'button')
+    clearDeleteBtn.id = 'calSummaryClearDeleteBtn'
+    clearDeleteBtn.classList.add('btn', 'btn-info', 'btn-block', 'btn-sm')
+    clearDeleteBtn.setAttribute('style', 'margin-top: 6px')
+    clearDeleteBtn.innerHTML = 'Clear Staged Deletions'
+    panelDiv.appendChild(clearDeleteBtn)
+    clearDeleteBtn.addEventListener('click', function() {
+        clearAllCalSummaryDeletions()
+    })
 
     getCalibrationHeightSummary()
 }
@@ -10223,11 +10254,69 @@ function applyCalSummaryRowStyle(cameragroup) {
     if (!tr) return
     if (cameragroup.selected) {
         tr.style.backgroundColor = 'rgba(223, 105, 26, 0.3)'
+    } else if (countStagedCalDeletions(cameragroup) > 0) {
+        tr.style.backgroundColor = 'rgba(217, 83, 79, 0.25)'
     } else if (cameragroupHasStagedCalHeight(cameragroup)) {
         tr.style.backgroundColor = 'rgba(91, 192, 222, 0.3)'
     } else {
         tr.style.backgroundColor = ''
     }
+}
+
+function countStagedCalDeletions(cameragroup) {
+    var count = 0
+    for (var i = 0; i < cameragroup.images.length; i++) {
+        if (deletedCalImages.indexOf(cameragroup.images[i].id) !== -1) count += 1
+    }
+    return count
+}
+
+function stageCalSummaryDeletion() {
+    /** Stages deletion of every calibration image on the selected cameras. */
+    var selected = getSelectedCalSummaryCameragroups()
+    if (selected.length === 0) return
+    for (var s = 0; s < selected.length; s++) {
+        var cameragroup = selected[s]
+        for (var i = 0; i < cameragroup.images.length; i++) {
+            var imageId = cameragroup.images[i].id
+            if (deletedCalImages.indexOf(imageId) === -1) deletedCalImages.push(imageId)
+            calImageCameragroupById[imageId] = cameragroup.id
+            delete editedCalHeights[imageId]
+            delete editedCalBboxes[imageId]
+            delete editedCalDistances[imageId]
+        }
+    }
+    finishCalSummaryDeletion()
+}
+
+function cancelCalSummaryDeletion() {
+    /** Unstages deletion for the selected cameras only. */
+    var selected = getSelectedCalSummaryCameragroups()
+    if (selected.length === 0) return
+    for (var s = 0; s < selected.length; s++) {
+        var images = selected[s].images
+        for (var i = 0; i < images.length; i++) {
+            var idx = deletedCalImages.indexOf(images[i].id)
+            if (idx !== -1) deletedCalImages.splice(idx, 1)
+        }
+    }
+    finishCalSummaryDeletion()
+}
+
+function clearAllCalSummaryDeletions() {
+    /** Unstages every calibration image deletion in the survey. */
+    deletedCalImages = []
+    var selectAll = document.getElementById('selectAllCalCameras')
+    if (selectAll) selectAll.checked = false
+    clearCalSummarySelection()
+    buildCalSummaryTable()
+}
+
+function finishCalSummaryDeletion() {
+    var selectAll = document.getElementById('selectAllCalCameras')
+    if (selectAll) selectAll.checked = false
+    clearCalSummarySelection()
+    buildCalSummaryTable()
 }
 
 function getSelectedCalSummaryCameragroups() {
@@ -10515,7 +10604,7 @@ function buildCalEditMode() {
 
     var descHeight = document.createElement('div')
     descHeight.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
-    descHeight.innerHTML = '<i>Height (m) above the ground at which this camera was mounted. Leave empty for none.</i>'
+    descHeight.innerHTML = '<i>Person\'s height (m) in this image.</i>'
     col3.appendChild(descHeight)
 
     var heightInput = document.createElement('input')
@@ -10539,7 +10628,7 @@ function buildCalEditMode() {
 
     var descDel = document.createElement('div')
     descDel.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
-    descDel.innerHTML = '<i>Stage this image, this camera, or all cameras for deletion.</i>'
+    descDel.innerHTML = '<i>Stage this image for deletion.</i>'
     col3.appendChild(descDel)
 
     var stageBtn = document.createElement('button')
@@ -10552,29 +10641,6 @@ function buildCalEditMode() {
     stageBtn.style.lineHeight = '1.2'
     stageBtn.onclick = function() { stageCalibrationDeletion() }
     col3.appendChild(stageBtn)
-
-    var stageCamBtn = document.createElement('button')
-    stageCamBtn.id = 'calStageDeleteCameraBtn'
-    stageCamBtn.innerHTML = 'Stage Camera for Deletion'
-    stageCamBtn.classList.add('btn', 'btn-primary', 'btn-block')
-    stageCamBtn.style.marginBottom = '6px'
-    stageCamBtn.style.whiteSpace = 'normal'
-    stageCamBtn.style.height = 'auto'
-    stageCamBtn.style.lineHeight = '1.2'
-    stageCamBtn.onclick = function() { stageCalibrationCameragroupDeletion() }
-    col3.appendChild(stageCamBtn)
-
-    var stageAllBtn = document.createElement('button')
-    stageAllBtn.id = 'calStageDeleteAllBtn'
-    stageAllBtn.innerHTML = 'Stage All for Deletion'
-    stageAllBtn.classList.add('btn', 'btn-primary', 'btn-block')
-    stageAllBtn.style.marginBottom = '6px'
-    stageAllBtn.style.whiteSpace = 'normal'
-    stageAllBtn.style.height = 'auto'
-    stageAllBtn.style.lineHeight = '1.2'
-    stageAllBtn.disabled = true
-    stageAllBtn.onclick = function() { stageAllCalibrationDeletion() }
-    col3.appendChild(stageAllBtn)
 
     var calStatusMsg = document.createElement('div')
     calStatusMsg.id = 'calStatusMsg'
@@ -11113,12 +11179,12 @@ function buildDepthEstimation() {
     // Title + description
     var h5 = document.createElement('h5')
     h5.setAttribute('style', 'margin-bottom: 2px')
-    h5.innerHTML = 'Distance Estimation'
+    h5.innerHTML = 'Morphometrics'
     div.appendChild(h5)
 
     var desc = document.createElement('div')
     desc.setAttribute('style', 'font-size: 80%; margin-bottom: 2px')
-    desc.innerHTML = '<i>Estimate detection distances using calibration images and species-labelled trap detections from an annotation set.</i>'
+    desc.innerHTML = '<i>Estimate detection distances, shoulder heights, and back lengths using calibration images and species-labelled trap detections from an annotation set.</i>'
     div.appendChild(desc)
     div.appendChild(document.createElement('br'))
 
@@ -13221,7 +13287,7 @@ function validateCalibrationStructure() {
             return {
                 valid: false,
                 message: 'No valid calibration images found in folder(s) ' + folderNames +
-                    '. Filenames must contain a distance in metres, optionally followed by the camera height in metres (e.g. 5.jpg, 10m.jpg, board_5.5m.jpg, 10m_2m.jpg).'
+                    '. Filenames must contain a distance in metres, optionally followed by the person\'s height in metres (e.g. 5.jpg, 10m.jpg, board_5.5m.jpg, 10m_2m.jpg, 10.5.2.jpg).'
             }
         }
     }
