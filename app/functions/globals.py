@@ -7336,7 +7336,13 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
             .scalar()
         ) or 0
         sightings_with_height = (
-            matching.filter(Detection.shoulder_height != None)
+            matching.filter(or_(
+                Detection.pose_keypoints.any(),
+                and_(
+                    Detection.shoulder_height == 0,
+                    Detection.back_length == 0,
+                ),
+            ))
             .with_entities(func.count(distinct(Detection.id)))
             .scalar()
         ) or 0

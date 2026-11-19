@@ -11661,7 +11661,7 @@ function renderDepthEstimationPrimer(preview, speciesList) {
         {text: 'Site', width: '10%'},
         {text: 'Camera', width: '16%'},
         {text: 'Sightings With Distances', width: '16%'},
-        {text: 'Sightings With Height', width: '14%'},
+        {text: 'Sightings With Keypoints (For Height & Back Length)', width: '18%'},
         {text: 'Calibration<br>Images', width: '10%'},
         {text: 'Height', width: '15%'},
         {text: 'Status', width: '22%'}
@@ -11708,11 +11708,10 @@ function renderDepthEstimationPrimer(preview, speciesList) {
             withDepthTd.innerHTML = withCount + ' / ' + (withCount + withoutCount)
             tr.appendChild(withDepthTd)
 
+            var withHeightCount = (cam.sightings_with_height != null) ? cam.sightings_with_height : 0
             var withHeightTd = document.createElement('td')
             withHeightTd.setAttribute('style', cellStyle)
-            withHeightTd.innerHTML = (cam.sightings_with_height != null)
-                ? cam.sightings_with_height
-                : 0
+            withHeightTd.innerHTML = withHeightCount + ' / ' + (withCount + withoutCount)
             tr.appendChild(withHeightTd)
 
             var calTd = document.createElement('td')
