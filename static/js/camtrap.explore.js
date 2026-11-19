@@ -744,6 +744,18 @@ function formatDetectionDistance(distance) {
     return metres.toFixed(2) + ' m'
 }
 
+function formatDetectionMeasurement(value) {
+    /** Formats shoulder height or back length. Empty and unusable (0) both read as None. */
+    if (value === null || value === undefined || value === '') {
+        return 'None'
+    }
+    var centimetres = parseFloat(value)
+    if (isNaN(centimetres) || centimetres === 0) {
+        return 'None'
+    }
+    return centimetres.toFixed(2) + ' cm'
+}
+
 function updateDetInfo(det=null, mapID = 'map1') {
     /** Updates the detection information. */
     let multiple_selected = checkMultipleSightingsSelected(mapID)
@@ -758,6 +770,8 @@ function updateDetInfo(det=null, mapID = 'map1') {
         }
         document.getElementById('detLabel').innerHTML = tempLab
         document.getElementById('detDistance').innerHTML = formatDetectionDistance(det.distance)
+        document.getElementById('detHeight').innerHTML = formatDetectionMeasurement(det.shoulder_height)
+        document.getElementById('detBackLength').innerHTML = formatDetectionMeasurement(det.back_length)
         if (det.individual != '-1') {
             let detIndiv = document.getElementById('detIndividual');
             detIndiv.innerHTML = det.individual_names[0]
@@ -790,6 +804,8 @@ function updateDetInfo(det=null, mapID = 'map1') {
         document.getElementById('detFlankDiv').hidden = true
         document.getElementById('detFlank').innerHTML = ''
         document.getElementById('detDistance').innerHTML = ''
+        document.getElementById('detHeight').innerHTML = ''
+        document.getElementById('detBackLength').innerHTML = ''
     }
 }
 

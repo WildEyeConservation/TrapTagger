@@ -570,7 +570,9 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             Trapgroup.longitude,
                             Video.id,
                             Video.filename,
-                            Individual.name
+                            Individual.name,
+                            rDetsSQ.c.shoulder_height,
+                            rDetsSQ.c.back_length
                         )\
                         .join(Image, Cluster.images) \
                         .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
@@ -1100,6 +1102,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                 }
                 if id:
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['distance'] = float(row[26]) if row[26] is not None else None
+                    clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['shoulder_height'] = float(row[35]) if row[35] is not None else None
+                    clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['back_length'] = float(row[36]) if row[36] is not None else None
 
             # Handle video
             # if id and row[31] and (row[31] not in clusterInfo[row[0]]['videos'].keys()):
