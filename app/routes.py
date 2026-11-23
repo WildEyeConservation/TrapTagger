@@ -3638,7 +3638,7 @@ def getDetailedTaskStatus(task_id):
                 reply['AI Check'] = {}
                 reply['Informational Tagging'] = {}
                 reply['Sighting Correction'] = {}
-                reply['Morphometrics'] = {}
+                reply['Distance Estimation'] = {}
                 reply['Keypoints'] = {}
                 reply['Individual ID'] = {}
                 
@@ -3693,9 +3693,9 @@ def getDetailedTaskStatus(task_id):
                     if sighting_count:
                         distance_filled = distance_count or 0
                         depth_perc = round((distance_filled/sighting_count)*100,2)
-                        reply['Morphometrics']['Sightings With Distances'] = str(distance_filled) + '/' + str(sighting_count) + ' (' + str(depth_perc) + '%)'
+                        reply['Distance Estimation']['Sightings With Distances'] = str(distance_filled) + '/' + str(sighting_count) + ' (' + str(depth_perc) + '%)'
                     else:
-                        reply['Morphometrics']['Sightings With Distances'] = '-'
+                        reply['Distance Estimation']['Sightings With Distances'] = '-'
 
                     if sighting_count:
                         keypoints_checked = db.session.query(func.count(distinct(Labelgroup.id)))\
@@ -3811,7 +3811,7 @@ def getDetailedTaskStatus(task_id):
                     # reply['AI Check']['Potential Clusters'] = '-'
                     reply['Informational Tagging']['Tagged'] = '-'
                     reply['Sighting Correction']['Checked Sightings'] = '-'
-                    reply['Morphometrics']['Sightings With Distances'] = '-'
+                    reply['Distance Estimation']['Sightings With Distances'] = '-'
                     reply['Keypoints']['Checked Sightings'] = '-'
                     reply['Individual ID']['Cluster-Level'] = '-'
                     reply['Individual ID']['Inter-Cluster'] = '-'

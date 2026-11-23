@@ -5079,7 +5079,7 @@ function buildStatusTable(labels,headings) {
         'Summary': {'Clusters': '5%', 'Images': '4%', 'Sightings': '5.5%', 'Individuals': '6%'},
         'Species Annotation': {'Tagged': '4.2%', 'Complete': '5.5%'},
         'Informational Tagging': {'Tagged': '7%'},
-        'Morphometrics': {'Sightings With Distances': '8%'},
+        'Distance Estimation': {'Sightings With Distances': '8%'},
         'Keypoints': {'Checked Sightings': '7%'}
     }
     colgroup = document.createElement('colgroup')
@@ -6570,6 +6570,12 @@ function resolveCalibrationCameragroupName(cgId) {
     for (var s = 0; s <  stagedCalUploadSets.length; s++) {
         if (stagedCalUploadSets[s].cameragroupId === cgId) {
             return stagedCalUploadSets[s].cameragroupName
+        }
+    }
+    for (var h = 0; h < calHeightSummary.length; h++) {
+        if (calHeightSummary[h].id === cgId && calHeightSummary[h].name) {
+            if (calHeightSummary[h].site) return calHeightSummary[h].name + ' (' + calHeightSummary[h].site + ')'
+            return calHeightSummary[h].name
         }
     }
     return 'Cameragroup ' + cgId
@@ -9938,7 +9944,7 @@ function buildCalSummaryMode() {
     applyBtn.setAttribute('type', 'button')
     applyBtn.id = 'calSummaryApplyHeightBtn'
     applyBtn.classList.add('btn', 'btn-primary', 'btn-block', 'btn-sm')
-    applyBtn.setAttribute('style', 'margin-top: 8px; margin-bottom: 6px')
+    applyBtn.setAttribute('style', 'margin-top: 8px; margin-bottom: 0')
     applyBtn.innerHTML = 'Apply Height'
     panelDiv.appendChild(applyBtn)
     applyBtn.addEventListener('click', function() {
@@ -9949,6 +9955,7 @@ function buildCalSummaryMode() {
     removeBtn.setAttribute('type', 'button')
     removeBtn.id = 'calSummaryRemoveHeightBtn'
     removeBtn.classList.add('btn', 'btn-danger', 'btn-block', 'btn-sm')
+    removeBtn.setAttribute('style', 'margin-top: 8px; margin-bottom: 0')
     removeBtn.innerHTML = 'Remove Heights'
     panelDiv.appendChild(removeBtn)
     removeBtn.addEventListener('click', function() {
@@ -9959,6 +9966,7 @@ function buildCalSummaryMode() {
     clearBtn.setAttribute('type', 'button')
     clearBtn.id = 'calSummaryClearHeightBtn'
     clearBtn.classList.add('btn', 'btn-danger', 'btn-block', 'btn-sm')
+    clearBtn.setAttribute('style', 'margin-top: 8px; margin-bottom: 0')
     clearBtn.innerHTML = 'Clear Staged Heights'
     panelDiv.appendChild(clearBtn)
     clearBtn.addEventListener('click', function() {
@@ -9969,16 +9977,23 @@ function buildCalSummaryMode() {
         document.getElementById('calSummaryStatusMsg').innerHTML = '<i>Staged heights cleared.</i>'
     })
 
+    if (!document.getElementById('calSummaryStatusStyle')) {
+        var statusStyle = document.createElement('style')
+        statusStyle.id = 'calSummaryStatusStyle'
+        statusStyle.innerHTML = '#calSummaryStatusMsg:empty { display: none; }'
+        document.head.appendChild(statusStyle)
+    }
+
     var statusMsg = document.createElement('div')
     statusMsg.id = 'calSummaryStatusMsg'
-    statusMsg.setAttribute('style', 'font-size: 80%; color: grey; margin-top: 6px')
+    statusMsg.setAttribute('style', 'font-size: 80%; color: grey; margin-top: 8px; margin-bottom: 0')
     panelDiv.appendChild(statusMsg)
 
     var deleteBtn = document.createElement('button')
     deleteBtn.setAttribute('type', 'button')
     deleteBtn.id = 'calSummaryDeleteImagesBtn'
     deleteBtn.classList.add('btn', 'btn-danger', 'btn-block', 'btn-sm')
-    deleteBtn.setAttribute('style', 'margin-top: 8px')
+    deleteBtn.setAttribute('style', 'margin-top: 8px; margin-bottom: 0')
     deleteBtn.innerHTML = 'Delete Images'
     panelDiv.appendChild(deleteBtn)
     deleteBtn.addEventListener('click', function() {
@@ -9989,7 +10004,7 @@ function buildCalSummaryMode() {
     cancelDeleteBtn.setAttribute('type', 'button')
     cancelDeleteBtn.id = 'calSummaryCancelDeleteBtn'
     cancelDeleteBtn.classList.add('btn', 'btn-info', 'btn-block', 'btn-sm')
-    cancelDeleteBtn.setAttribute('style', 'margin-top: 6px')
+    cancelDeleteBtn.setAttribute('style', 'margin-top: 8px; margin-bottom: 0')
     cancelDeleteBtn.innerHTML = 'Cancel Deletions'
     panelDiv.appendChild(cancelDeleteBtn)
     cancelDeleteBtn.addEventListener('click', function() {
@@ -10000,7 +10015,7 @@ function buildCalSummaryMode() {
     clearDeleteBtn.setAttribute('type', 'button')
     clearDeleteBtn.id = 'calSummaryClearDeleteBtn'
     clearDeleteBtn.classList.add('btn', 'btn-info', 'btn-block', 'btn-sm')
-    clearDeleteBtn.setAttribute('style', 'margin-top: 6px')
+    clearDeleteBtn.setAttribute('style', 'margin-top: 8px; margin-bottom: 0')
     clearDeleteBtn.innerHTML = 'Clear Staged Deletions'
     panelDiv.appendChild(clearDeleteBtn)
     clearDeleteBtn.addEventListener('click', function() {
@@ -11179,7 +11194,7 @@ function buildDepthEstimation() {
     // Title + description
     var h5 = document.createElement('h5')
     h5.setAttribute('style', 'margin-bottom: 2px')
-    h5.innerHTML = 'Morphometrics'
+    h5.innerHTML = 'Distance Estimation'
     div.appendChild(h5)
 
     var desc = document.createElement('div')

@@ -311,6 +311,68 @@ def prepareComparison(self,translations,groundTruth,task_id1,task_id2,user_id):
 
     return True
 
+_KEYPOINT_COLUMNS = ['Keypoint', 'Keypoint X', 'Keypoint Y', 'Keypoint Score', 'Keypoint Source']
+
+def _format_body_measurement(value):
+    '''CSV text for a centimetre measurement. Null is None, and 0 is Unusable.'''
+    if value is None or value == 'None':
+        return 'None'
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 'None'
+    if math.isnan(number):
+        return 'None'
+    if number == 0:
+        return 'Unusable'
+    rounded = round(number, 2)
+    if rounded == 0:
+        return round(number, 4)
+    return rounded
+
+def _expand_sighting_keypoints(df):
+    '''Repeat each sighting row once per stored keypoint. A sighting with none stays one row.'''
+    for column in _KEYPOINT_COLUMNS:
+        if column not in df.columns:
+            df[column] = 'None'
+    if 'Sighting ID' not in df.columns or len(df) == 0:
+        return df
+
+    def sighting_key(value):
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            return None
+        return number if number > 0 else None
+
+    df['_sighting_key'] = df['Sighting ID'].map(sighting_key)
+    ids = [value for value in df['_sighting_key'].dropna().unique().tolist()]
+    points = []
+    for chunk in chunker(ids, 5000):
+        points.extend(db.session.query(
+            PoseKeypoint.detection_id,
+            PoseKeypoint.name,
+            PoseKeypoint.x,
+            PoseKeypoint.y,
+            PoseKeypoint.score,
+            PoseKeypoint.source,
+            PoseKeypoint.id,
+        ).filter(PoseKeypoint.detection_id.in_(list(chunk))).all())
+
+    if not points:
+        del df['_sighting_key']
+        return df
+
+    point_df = pd.DataFrame(points, columns=['_sighting_key', 'Keypoint', 'Keypoint X', 'Keypoint Y', 'Keypoint Score', 'Keypoint Source', '_point_id'])
+    point_df = point_df.sort_values(['_sighting_key', '_point_id'])
+    del point_df['_point_id']
+    base = df.drop(columns=[column for column in _KEYPOINT_COLUMNS if column in df.columns])
+    merged = base.merge(point_df, on='_sighting_key', how='left')
+    del merged['_sighting_key']
+    for column in _KEYPOINT_COLUMNS:
+        merged[column] = merged[column].where(merged[column].notna(), 'None')
+    return merged
+
 def generate_url(rootUrl,level_type,x_level):
     ''' Helper function for create_task_dataframe that collapses the urls generated for videos based on the argument.'''
     return rootUrl + level_type + '&id=' + str(x_level)
@@ -408,6 +470,13 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         query = query.filter(Image.corrected_timestamp<=endDate)
         sq = sq.filter(Image.corrected_timestamp<=endDate)
 
+    if 'Shoulder Height (cm)' in required_columns:
+        query = query.add_columns(Detection.shoulder_height.label('Shoulder Height (cm)'))
+    if 'Back Length (cm)' in required_columns:
+        query = query.add_columns(Detection.back_length.label('Back Length (cm)'))
+    if 'Scale Factor' in required_columns:
+        query = query.add_columns(Cameragroup.scale_factor.label('Scale Factor'))
+
     query = query.distinct()
     df = pd.read_sql(query.statement,db.session.bind)
 
@@ -444,7 +513,9 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
 
         if trapgroup_id: query = query.filter(Trapgroup.id==trapgroup_id)
         if startDate: query = query.filter(Image.corrected_timestamp>=startDate)
-        if endDate: query = query.filter(Image.corrected_timestamp<=endDate)                     
+        if endDate: query = query.filter(Image.corrected_timestamp<=endDate)
+        if 'Scale Factor' in required_columns:
+            query = query.add_columns(Cameragroup.scale_factor.label('Scale Factor'))
         query = query.distinct()
 
         df2 = pd.read_sql(query.statement,db.session.bind)
@@ -458,6 +529,10 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         df2['Bottom'] = 0
         df2['Score'] = 0
         df2['Distance (metres)'] = float('nan')
+        if 'Shoulder Height (cm)' in required_columns:
+            df2['Shoulder Height (cm)'] = float('nan')
+        if 'Back Length (cm)' in required_columns:
+            df2['Back Length (cm)'] = float('nan')
 
         # This ensures that multi non-rDet images only have one empty detection
         df2 = df2.drop_duplicates(subset=['Image ID'], keep='first')
@@ -651,6 +726,9 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         if level_type=='site': level_type='trapgroup'
         df[level_name+' URL'] = df.apply(lambda x: generate_url(rootUrl,level_type,x[level]), axis=1)
 
+    for column in ('Shoulder Height (cm)', 'Back Length (cm)'):
+        if column in df.columns:
+            df[column] = df[column].apply(_format_body_measurement)
 
     return df
 
@@ -758,6 +836,11 @@ def generate_csv_parent(self,selectedTasks, selectedLevel, requestedColumns, cus
             index = requestedColumns.index('Boxes')
             requestedColumns[index:index] = ['Left','Right','Top','Bottom','Score']
             requestedColumns.remove('Boxes')
+
+        if 'Keypoints' in requestedColumns:
+            index = requestedColumns.index('Keypoints')
+            requestedColumns[index:index] = list(_KEYPOINT_COLUMNS)
+            requestedColumns.remove('Keypoints')
 
         required_columns = requestedColumns.copy()
         for c in custom_columns[str(selectedTasks[0])]:
@@ -932,6 +1015,9 @@ def generate_csv(self,trapgroup_id,task_id,filename,selectedLevel,requestedColum
                 # We only want to include the None Species rows where there is no other species in the selectedLevel
                 only_none = df.groupby(selectedLevel+' ID')['Species'].transform(lambda x: (x == 'None').all())
                 df = df[only_none | (df['Species'] != 'None')]
+
+            if selectedLevel == 'Sighting' and 'Keypoint' in requestedColumns:
+                df = _expand_sighting_keypoints(df)
 
             df = df[requestedColumns]
         
