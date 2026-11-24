@@ -8427,7 +8427,18 @@ function renderStagedCalUploadSets(container) {
         for (var b = 0; b < bulkSets.length; b++) {
             var bs = bulkSets[b].set
             var n = bs.distances ? bs.distances.length : bs.files.length
-            parts.push(bs.cameragroupName + ' (' + n + ' new distance' + (n === 1 ? '' : 's') + ')')
+            var heightCount = 0
+            if (bs.heights) {
+                for (var h = 0; h < bs.heights.length; h++) {
+                    if (bs.heights[h] != null) heightCount += 1
+                }
+            }
+            var summary = bs.cameragroupName + ' (' + n + ' new distance' + (n === 1 ? '' : 's')
+            if (heightCount > 0) {
+                summary += ', ' + heightCount + ' new height' + (heightCount === 1 ? '' : 's')
+            }
+            summary += ')'
+            parts.push(summary)
         }
 
         var bulkLabel = document.createElement('div')
@@ -11527,24 +11538,6 @@ function depthPreviewLoadingHtml() {
     return '<i class="fa-solid fa-spinner fa-spin" style="color: #DF694A"></i> <i>Loading preview...</i>'
 }
 
-function setDepthEstimationLaunching(active) {
-    /** Covers the distance-estimation panel while a launch request is in flight. */
-    var div = document.getElementById('editDepthEstimationDiv')
-    if (!div) return
-    var existing = document.getElementById('depthLaunchOverlay')
-    if (!active) {
-        if (existing) existing.parentNode.removeChild(existing)
-        return
-    }
-    if (existing) return
-    div.style.position = 'relative'
-    var overlay = document.createElement('div')
-    overlay.id = 'depthLaunchOverlay'
-    overlay.setAttribute('style', 'position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.72); z-index: 20; display: flex; align-items: center; justify-content: center;')
-    overlay.innerHTML = '<div style="text-align: center;"><i class="fa-solid fa-spinner fa-spin fa-2xl" style="color: #DF694A"></i><div style="margin-top: 10px;"><i>Starting distance estimation...</i></div></div>'
-    div.appendChild(overlay)
-}
-
 function refreshDepthEstimationPreview() {
     if (depthLaunchInProgress) return
     if (depthPreviewTimer) {
@@ -11857,7 +11850,6 @@ function executeDepthEstimationLaunch(){
     }
     launchBtn.disabled = true
     btnEditSurvey.disabled = true
-    setDepthEstimationLaunching(true)
 
     var formData = new FormData()
     formData.append('survey_id', selectedSurvey)
@@ -11883,7 +11875,6 @@ function executeDepthEstimationLaunch(){
                     clearEditSurveyModal()
                 } else {
                     depthLaunchInProgress = false
-                    setDepthEstimationLaunching(false)
                     if (launchBtn) launchBtn.disabled = !depthPreviewCanLaunch
                     errorsDiv.innerHTML = reply.message || 'Launch failed.'
                     if (reply.skipped) {
@@ -11892,7 +11883,6 @@ function executeDepthEstimationLaunch(){
                 }
             } else {
                 depthLaunchInProgress = false
-                setDepthEstimationLaunching(false)
                 if (launchBtn) launchBtn.disabled = !depthPreviewCanLaunch
                 errorsDiv.innerHTML = 'Server error (' + this.status + ')'
             }

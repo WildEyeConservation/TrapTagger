@@ -21,7 +21,7 @@ from app.functions.globals import classifyTask, update_masks, retryTime, resolve
     sync_labels, sync_tags, update_individuals_primary_dets, updateIndividualIdStatus, update_duplicate_individual_names, process_multi_labels
 from app.functions.delete import *
 from app.functions.individualID import cleanUpIndividuals, check_individual_detection_mismatch
-from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, run_calibration_detection_batch, null_detection_distances_for_cameragroups, null_detection_distances_for_cameras, parse_calibration_distance_filename, apply_edit_survey_cal_edits, apply_edit_survey_cal_uploads, clean_cal_upload_staging, folder_name_is_calibration, path_contains_calibration_folder
+from app.functions.imports import classifySurvey, s3traverse, classifyCluster, importKML, run_calibration_detection_batch, null_detection_distances_for_cameragroups, null_detection_distances_for_cameras, parse_calibration_distance_filename, apply_edit_survey_cal_edits, apply_edit_survey_cal_uploads, clean_cal_upload_staging, folder_name_is_calibration, path_contains_calibration_folder, refresh_cameragroup_scale_and_measurements
 import GLOBALS
 from sqlalchemy.sql import func, or_, and_, distinct, alias
 from sqlalchemy import desc, extract, delete, select
@@ -2501,27 +2501,30 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
 
         # All calibration mutations run here (edits, deletions, staged uploads),
         # then MegaDetector for new uploads, then null detection distances for
-        # every affected cameragroup.
+        # every affected cameragroup. Bbox/height changes then refresh scale and
+        # body measurements (recalc only where distance still remains).
         affected_cameragroups = set(affected_cameragroup_ids or [])
         cal_images_to_detect = list(cal_images_to_detect or [])
+        scale_measurement_refresh = set()
 
         if cal_bboxes or cal_distances or cal_heights or cal_deletions:
-            affected_cameragroups.update(
-                apply_edit_survey_cal_edits(
-                    survey_id,
-                    cal_bboxes=cal_bboxes,
-                    cal_distances=cal_distances,
-                    cal_heights=cal_heights,
-                    cal_deletions=cal_deletions,
-                )
+            edit_affected, edit_refresh = apply_edit_survey_cal_edits(
+                survey_id,
+                cal_bboxes=cal_bboxes,
+                cal_distances=cal_distances,
+                cal_heights=cal_heights,
+                cal_deletions=cal_deletions,
             )
+            affected_cameragroups.update(edit_affected)
+            scale_measurement_refresh.update(edit_refresh)
 
         if cal_upload_manifest:
-            uploaded_to_detect, upload_cg_ids = apply_edit_survey_cal_uploads(
+            uploaded_to_detect, upload_cg_ids, upload_refresh = apply_edit_survey_cal_uploads(
                 survey_id, cal_upload_manifest
             )
             cal_images_to_detect.extend(uploaded_to_detect)
             affected_cameragroups.update(upload_cg_ids)
+            scale_measurement_refresh.update(upload_refresh)
 
         if cal_images_to_detect:
             cal_images_to_detect = [tuple(item) for item in cal_images_to_detect]
@@ -2530,6 +2533,9 @@ def edit_survey(self,survey_id,user_id,classifier_id,sky_masked,ignore_small_det
         if affected_cameragroups:
             null_detection_distances_for_cameragroups(affected_cameragroups)
             db.session.commit()
+
+        if scale_measurement_refresh:
+            refresh_cameragroup_scale_and_measurements(scale_measurement_refresh)
 
         # Refresh cached label counts when cal edits cleared Detection.distance
         skipUpdateStatuses = not bool(affected_cameragroups)

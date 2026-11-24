@@ -5282,6 +5282,176 @@ def clear_cameragroup_scale_factors(cameragroup_ids):
         synchronize_session=False,
     )
 
+def _s3_image_size(key, cache=None):
+    '''Return (width, height) for an S3 JPEG, or None if it cannot be read.'''
+    if not key:
+        return None
+    if cache is not None and key in cache:
+        return cache[key]
+    try:
+        from PIL import Image as PilImage
+        obj = GLOBALS.s3client.get_object(Bucket=Config.BUCKET, Key=key)
+        with PilImage.open(BytesIO(obj['Body'].read())) as img:
+            size = img.size
+    except Exception:
+        app.logger.info('Failed reading image size for {}'.format(key))
+        app.logger.info(traceback.format_exc())
+        size = None
+    if cache is not None:
+        cache[key] = size
+    return size
+
+def _comp_image_key(camera_path, filename):
+    '''S3 key for the compressed trap image matching depth/pose coordinates.'''
+    if not camera_path or not filename:
+        return None
+    splits = camera_path.split('/')
+    splits[0] = splits[0] + '-comp'
+    return '/'.join(splits) + '/' + filename
+
+def null_non_unusable_body_measurements_for_cameragroups(cameragroup_ids):
+    '''Clear shoulder/back except explicit unusable marks (both stored as 0).'''
+    ids = [cg_id for cg_id in set(cameragroup_ids) if cg_id is not None]
+    if not ids:
+        return
+    for cg_id in ids:
+        image_ids = (
+            db.session.query(Image.id)
+            .join(Camera, Image.camera_id == Camera.id)
+            .filter(Camera.cameragroup_id == cg_id)
+        )
+        db.session.query(Detection).filter(
+            Detection.image_id.in_(image_ids),
+            or_(Detection.shoulder_height != None, Detection.back_length != None),
+            ~and_(Detection.shoulder_height == 0, Detection.back_length == 0),
+        ).update(
+            {
+                Detection.shoulder_height: None,
+                Detection.back_length: None,
+            },
+            synchronize_session=False,
+        )
+
+def recompute_cameragroup_scale_factor(cameragroup_id, size_cache=None):
+    '''Recompute Cameragroup.scale_factor from calibration images that have height.
+
+    Uses average_scale_factor on cal images with distance, height, and a bbox.
+    Stores None when nothing can contribute.
+    '''
+    from depthworker.height import average_scale_factor
+    from app.functions.globals import _calibration_image_has_bbox
+
+    if cameragroup_id is None:
+        return None
+    if size_cache is None:
+        size_cache = {}
+
+    cal_images = (
+        db.session.query(CalibrationImage)
+        .filter(CalibrationImage.cameragroup_id == int(cameragroup_id))
+        .all()
+    )
+    entries = []
+    for cal in cal_images:
+        if cal.height is None or float(cal.height) <= 0:
+            continue
+        if cal.distance is None or float(cal.distance) <= 0:
+            continue
+        if not _calibration_image_has_bbox(cal):
+            continue
+        size = _s3_image_size(cal.filename, size_cache)
+        if not size:
+            continue
+        width, height = size
+        if width <= 0 or height <= 0:
+            continue
+        entries.append({
+            'bbox_pixels': [
+                int(float(cal.left) * width),
+                int(float(cal.top) * height),
+                int(float(cal.right) * width),
+                int(float(cal.bottom) * height),
+            ],
+            'height': float(cal.height),
+            'known_distance': float(cal.distance),
+        })
+
+    scale = average_scale_factor(entries)
+    cameragroup = db.session.query(Cameragroup).get(int(cameragroup_id))
+    if cameragroup is not None:
+        cameragroup.scale_factor = None if scale is None else float(scale)
+    return scale
+
+def recalc_body_measurements_for_cameragroup(cameragroup_id, scale_factor, size_cache=None):
+    '''Recalc shoulder/back from stored keypoints when distance and scale allow.
+
+    Unusable detections (both measurements 0) are left alone. Missing required
+    keypoints leave that measurement null.
+    '''
+    from depthworker.height import measurements_from_stored_points
+
+    if cameragroup_id is None:
+        return
+    if size_cache is None:
+        size_cache = {}
+    try:
+        scale_value = float(scale_factor)
+    except (TypeError, ValueError):
+        return
+    if scale_value <= 0:
+        return
+
+    detections = (
+        db.session.query(Detection)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .filter(Camera.cameragroup_id == int(cameragroup_id))
+        .filter(Detection.distance != None)
+        .filter(Detection.pose_keypoints.any())
+        .all()
+    )
+    for detection in detections:
+        if detection.shoulder_height == 0 and detection.back_length == 0:
+            continue
+        image = detection.image
+        if image is None or image.camera is None:
+            continue
+        key = _comp_image_key(image.camera.path, image.filename)
+        size = _s3_image_size(key, size_cache)
+        if not size:
+            detection.shoulder_height = None
+            detection.back_length = None
+            continue
+        width, height = size
+        points = [{
+            'name': point.name,
+            'x': point.x,
+            'y': point.y,
+            'score': point.score,
+        } for point in detection.pose_keypoints]
+        shoulder, back = measurements_from_stored_points(
+            points, detection.flank, detection.distance, scale_value, width, height
+        )
+        detection.shoulder_height = shoulder
+        detection.back_length = back
+
+def refresh_cameragroup_scale_and_measurements(cameragroup_ids):
+    '''After cal bbox/height changes: null non-unusable body sizes, refresh scale, recalc.
+
+    Detection.distance must already have been cleared for cameragroups that need
+    depth invalidation. Recalc only fills measurements where distance remains and
+    enough keypoints exist; otherwise measurements stay null.
+    '''
+    ids = [cg_id for cg_id in set(cameragroup_ids) if cg_id is not None]
+    if not ids:
+        return
+    null_non_unusable_body_measurements_for_cameragroups(ids)
+    size_cache = {}
+    for cg_id in ids:
+        scale = recompute_cameragroup_scale_factor(cg_id, size_cache)
+        recalc_body_measurements_for_cameragroup(cg_id, scale, size_cache)
+    db.session.commit()
+
 def null_detection_distances_for_cameragroups(cameragroup_ids):
     for cg_id in cameragroup_ids:
         image_ids = (
@@ -5353,17 +5523,21 @@ def clean_cal_upload_staging(survey_id):
 def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, cal_heights=None, cal_deletions=None):
     '''
     Apply bbox / distance / height / deletion calibration edits for a survey.
-    Returns set of affected cameragroup IDs. Heights do not clear detection distances,
-    so height-only edits leave their cameragroups out of that set. Any change to a
-    calibration distance, height, bounding box, or image still clears
-    Cameragroup.scale_factor.
+
+    Returns (affected_cameragroups, scale_measurement_refresh).
+    affected_cameragroups need Detection.distance cleared (bbox, distance, deletion).
+    Height-only edits are omitted from that set. scale_measurement_refresh is the
+    cameragroups whose scale and body measurements should be refreshed after any
+    distance clearance (bbox, height add/change/remove, deletion). Distance-only
+    edits still only clear Cameragroup.scale_factor for the next depth job.
     '''
     from app.functions.delete import delete_calibration_images
 
     affected_cameragroups = set()
     scale_clear = set()
+    scale_measurement_refresh = set()
     if not (cal_bboxes or cal_distances or cal_heights or cal_deletions):
-        return affected_cameragroups
+        return affected_cameragroups, scale_measurement_refresh
 
     deletion_ids = set(int(i) for i in cal_deletions) if cal_deletions else set()
 
@@ -5374,7 +5548,7 @@ def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, 
             cal_image = get_calibration_image_for_survey(int(cal_id_str), survey_id)
             if cal_image:
                 affected_cameragroups.add(cal_image.cameragroup_id)
-                scale_clear.add(cal_image.cameragroup_id)
+                scale_measurement_refresh.add(cal_image.cameragroup_id)
                 cal_image.top = bbox.get('top')
                 cal_image.left = bbox.get('left')
                 cal_image.bottom = bbox.get('bottom')
@@ -5415,8 +5589,9 @@ def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, 
                 continue
             # An empty height clears the value.
             if new_height in (None, '', 'none'):
-                cal_image.height = None
-                scale_clear.add(cal_image.cameragroup_id)
+                if cal_image.height is not None:
+                    cal_image.height = None
+                    scale_measurement_refresh.add(cal_image.cameragroup_id)
                 continue
             try:
                 new_height = float(new_height)
@@ -5424,8 +5599,10 @@ def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, 
                 continue
             if new_height <= 0:
                 continue
+            if cal_image.height is not None and float(cal_image.height) == new_height:
+                continue
             cal_image.height = new_height
-            scale_clear.add(cal_image.cameragroup_id)
+            scale_measurement_refresh.add(cal_image.cameragroup_id)
 
     if cal_deletions:
         validated_cal_ids = []
@@ -5434,14 +5611,16 @@ def apply_edit_survey_cal_edits(survey_id, cal_bboxes=None, cal_distances=None, 
             if not cal_image:
                 continue
             affected_cameragroups.add(cal_image.cameragroup_id)
-            scale_clear.add(cal_image.cameragroup_id)
+            # Removing a calibration image can change (or remove) height contribution.
+            scale_measurement_refresh.add(cal_image.cameragroup_id)
             validated_cal_ids.append(cal_image.id)
         if validated_cal_ids:
             delete_calibration_images(survey_id=survey_id, ids=validated_cal_ids)
 
-    clear_cameragroup_scale_factors(scale_clear)
+    # Distance-only changes keep the old clear-for-next-depth behaviour.
+    clear_cameragroup_scale_factors(scale_clear - scale_measurement_refresh)
     db.session.commit()
-    return affected_cameragroups
+    return affected_cameragroups, scale_measurement_refresh
 
 def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
     '''
@@ -5450,23 +5629,24 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
     {org}/{survey}/_cal_upload_staging_/{cg_id}/...
 
     A file whose distance is already stored for that cameragroup is not a new image.
-    When its filename includes a different height, only CalibrationImage.height is updated
-    and the camera's scale factor is cleared. A filename with no height leaves the saved
-    height unchanged. The uploaded file is discarded either way, and the cameragroup is
-    not marked affected for detection distances. A new calibration image also clears the
-    scale factor.
+    When its filename includes a different height, only CalibrationImage.height is updated.
+    A filename with no height leaves the saved height unchanged. The uploaded file is
+    discarded either way, and the cameragroup is not marked affected for detection
+    distances. Height add/change and new calibration images are returned in
+    scale_measurement_refresh so the caller can refresh scale and body measurements
+    after MegaDetector has written bboxes on new uploads.
 
     request_files is unused (kept for call-site compatibility).
 
-    Returns (cal_images_to_detect, affected_cameragroups)
+    Returns (cal_images_to_detect, affected_cameragroups, scale_measurement_refresh)
     cal_images_to_detect: list of (dest_key, cal_image_id)
     '''
     cal_images_to_detect = []
     affected_cameragroups = set()
-    scale_clear = set()
+    scale_measurement_refresh = set()
     survey = db.session.query(Survey).get(survey_id)
     if not survey or not manifest:
-        return cal_images_to_detect, affected_cameragroups
+        return cal_images_to_detect, affected_cameragroups, scale_measurement_refresh
 
     staging_prefix = cal_upload_staging_prefix(survey)
 
@@ -5518,7 +5698,7 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
                     existing.height is None or float(existing.height) != float(height)
                 ):
                     existing.height = height
-                    scale_clear.add(cg_id)
+                    scale_measurement_refresh.add(cg_id)
                 staging_key = fi.get('staging_key')
                 expected_prefix = staging_prefix + str(cg_id) + '/'
                 if staging_key and staging_key.startswith(expected_prefix):
@@ -5572,10 +5752,10 @@ def apply_edit_survey_cal_uploads(survey_id, manifest, request_files=None):
             db.session.flush()
             cal_images_to_detect.append((dest_key, cal_image.id))
             affected_cameragroups.add(cg_id)
-            scale_clear.add(cg_id)
-    clear_cameragroup_scale_factors(scale_clear)
+            # New image: refresh after MegaDetector writes its bbox (height optional).
+            scale_measurement_refresh.add(cg_id)
     db.session.commit()
-    return cal_images_to_detect, affected_cameragroups
+    return cal_images_to_detect, affected_cameragroups, scale_measurement_refresh
 
 def run_calibration_detection_batch(cal_images_to_detect):
     '''cal_images_to_detect: list of (dest_key, cal_image_id)'''
