@@ -19,10 +19,11 @@ Core inference for miewid_prepare (contract miewid_prepare@v1):
 
   For each detection in the Celery batch:
     1. Download the camera-trap image from S3 (fallback to -comp key)
-    2. Crop the detection box, keeping the original background pixels
+    2. Optionally SAM-mask (use_mask=True), then crop the detection box
     3. ScarceNet pose → flank L/R/A (skipped when the batch already has L/R/A)
     4. MiewID embed the chip (batched) → 2152-d L2-normalized vector
 
+  Default use_mask=False keeps the original background (how MiewID was trained).
   Returns {str(detection_id): {'flank': 'L'|'R'|'A', 'embedding': [float, ...]}}
   Failed detections are omitted (same pattern as gpuworker/similarity.py).
 '''
@@ -275,7 +276,7 @@ def _embed_chips(chip_paths):
     return embeddings
 
 
-def process_batch(batch, source_bucket, species):
+def process_batch(batch, source_bucket, species, use_mask=False):
     '''
     Run the full miewid_prepare pipeline on one Celery batch.
 
@@ -283,14 +284,14 @@ def process_batch(batch, source_bucket, species):
             batch (list): Items with detection_id, image_id, bbox, image_path, and optional flank (L/R/A)
             source_bucket (str): S3 bucket name
             species (str): Species label (used for temp folder naming / logs)
+            use_mask (bool): When True, SAM-mask the animal before cropping. Default
+                False uses the raw detection box; MiewID was trained on that crop.
 
         Returns:
             dict: {str(detection_id): {'flank': str, 'embedding': list[float]}}
     '''
-    # SAM is not used. MiewID is trained on the rectangular crop with the real
-    # background, so the chip is the detection box only. _ensure_sam() remains
-    # below if this needs to be reverted.
-    # _ensure_sam()
+    if use_mask:
+        _ensure_sam()
     if any(_known_flank(item) is None for item in batch):
         _ensure_pose()
     _ensure_miewid()
@@ -299,7 +300,7 @@ def process_batch(batch, source_bucket, species):
     if not os.path.isdir(work_dir):
         os.mkdir(work_dir)
 
-    # Pass 1: download → box crop → flank → save chip; collect successful rows
+    # Pass 1: download → (optional SAM) → box crop → flank → save chip
     pending = []  # list of (detection_id_str, flank, chip_path)
     for item in batch:
         detection_id = item.get('detection_id')
@@ -319,27 +320,27 @@ def process_batch(batch, source_bucket, species):
                 x2 = max(0, min(1, bbox_dict['right']))
                 y1 = max(0, min(1, bbox_dict['top']))
                 y2 = max(0, min(1, bbox_dict['bottom']))
-                # bbox = np.array([x1 * w, y1 * h, x2 * w, y2 * h])
+                bbox = np.array([x1 * w, y1 * h, x2 * w, y2 * h])
 
-                # SAM mask, kept so it can be restored. The black background is not
-                # how MiewID was trained, so the chip is the raw box instead.
-                # print('Segmenting detection {}'.format(det_key))
-                # starttime = time.time()
-                # _sam_predictor.set_image(image_data)
-                # masks, _, _ = _sam_predictor.predict(
-                #     point_coords=None,
-                #     point_labels=None,
-                #     box=bbox[None, :],
-                #     multimask_output=False,
-                # )
-                # mh, mw = masks[0].shape[-2:]
-                # mask_image = masks[0].reshape(mh, mw, 1) * np.array([1., 1., 1.]).reshape(1, 1, -1)
-                # segmented = (mask_image * image_data).astype('uint8')
-                # chip = Image.fromarray(
-                #     segmented[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)]
-                # )
-                # print('Segmentation done in {:.2f}s'.format(time.time() - starttime))
-                chip = Image.fromarray(image_data[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)])
+                if use_mask:
+                    print('Segmenting detection {}'.format(det_key))
+                    starttime = time.time()
+                    _sam_predictor.set_image(image_data)
+                    masks, _, _ = _sam_predictor.predict(
+                        point_coords=None,
+                        point_labels=None,
+                        box=bbox[None, :],
+                        multimask_output=False,
+                    )
+                    mh, mw = masks[0].shape[-2:]
+                    mask_image = masks[0].reshape(mh, mw, 1) * np.array([1., 1., 1.]).reshape(1, 1, -1)
+                    segmented = (mask_image * image_data).astype('uint8')
+                    chip = Image.fromarray(
+                        segmented[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)]
+                    )
+                    print('Segmentation done in {:.2f}s'.format(time.time() - starttime))
+                else:
+                    chip = Image.fromarray(image_data[int(y1 * h):int(y2 * h), int(x1 * w):int(x2 * w)])
 
                 chip_path = os.path.join(work_dir, '{}.jpg'.format(det_key))
                 chip.save(chip_path)

@@ -50,14 +50,16 @@ def setup_direct_queue(sender, instance, **kwargs):
 
 
 @app.task()
-def miewid_prepare(batch, sourceBucket, species):
+def miewid_prepare(batch, sourceBucket, species, use_mask=False):
     '''
-    SAM segment + ScarceNet flank + MiewID embedding for a batch of detections.
+    Optional SAM segment + ScarceNet flank + MiewID embedding for a batch of detections.
 
         Parameters:
             batch (list): Items with keys detection_id, image_id, bbox, image_path, and optional flank (L/R/A)
             sourceBucket (str): S3 bucket containing the images
             species (str): Species string (logging / temp folder naming)
+            use_mask (bool): When True, SAM-mask before cropping. Default False uses
+                the raw detection box (how MiewID was trained).
 
         Returns:
             dict: {
@@ -73,12 +75,12 @@ def miewid_prepare(batch, sourceBucket, species):
 
     starttime = time.time()
     print(
-        'miewid_prepare started: {} detections, species={}, bucket={}'.format(
-            len(batch) if batch else 0, species, sourceBucket
+        'miewid_prepare started: {} detections, species={}, bucket={}, use_mask={}'.format(
+            len(batch) if batch else 0, species, sourceBucket, use_mask
         )
     )
 
-    results = miewid_model.process_batch(batch, sourceBucket, species)
+    results = miewid_model.process_batch(batch, sourceBucket, species, use_mask=use_mask)
 
     print(
         'miewid_prepare finished in {:.1f}s ({} successes)'.format(

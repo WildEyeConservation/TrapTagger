@@ -9967,25 +9967,10 @@ function buildCalSummaryMode() {
     removeBtn.id = 'calSummaryRemoveHeightBtn'
     removeBtn.classList.add('btn', 'btn-danger', 'btn-block', 'btn-sm')
     removeBtn.setAttribute('style', 'margin-top: 8px; margin-bottom: 0')
-    removeBtn.innerHTML = 'Remove Heights'
+    removeBtn.innerHTML = 'Delete Image Heights'
     panelDiv.appendChild(removeBtn)
     removeBtn.addEventListener('click', function() {
         stageCalSummaryHeightRemoval()
-    })
-
-    var clearBtn = document.createElement('button')
-    clearBtn.setAttribute('type', 'button')
-    clearBtn.id = 'calSummaryClearHeightBtn'
-    clearBtn.classList.add('btn', 'btn-danger', 'btn-block', 'btn-sm')
-    clearBtn.setAttribute('style', 'margin-top: 8px; margin-bottom: 0')
-    clearBtn.innerHTML = 'Clear Staged Heights'
-    panelDiv.appendChild(clearBtn)
-    clearBtn.addEventListener('click', function() {
-        editedCalHeights = {}
-        document.getElementById('selectAllCalCameras').checked = false
-        clearCalSummarySelection()
-        getCalibrationHeightSummary()
-        document.getElementById('calSummaryStatusMsg').innerHTML = '<i>Staged heights cleared.</i>'
     })
 
     if (!document.getElementById('calSummaryStatusStyle')) {
@@ -10011,26 +9996,15 @@ function buildCalSummaryMode() {
         stageCalSummaryDeletion()
     })
 
-    var cancelDeleteBtn = document.createElement('button')
-    cancelDeleteBtn.setAttribute('type', 'button')
-    cancelDeleteBtn.id = 'calSummaryCancelDeleteBtn'
-    cancelDeleteBtn.classList.add('btn', 'btn-info', 'btn-block', 'btn-sm')
-    cancelDeleteBtn.setAttribute('style', 'margin-top: 8px; margin-bottom: 0')
-    cancelDeleteBtn.innerHTML = 'Cancel Deletions'
-    panelDiv.appendChild(cancelDeleteBtn)
-    cancelDeleteBtn.addEventListener('click', function() {
-        cancelCalSummaryDeletion()
-    })
-
-    var clearDeleteBtn = document.createElement('button')
-    clearDeleteBtn.setAttribute('type', 'button')
-    clearDeleteBtn.id = 'calSummaryClearDeleteBtn'
-    clearDeleteBtn.classList.add('btn', 'btn-info', 'btn-block', 'btn-sm')
-    clearDeleteBtn.setAttribute('style', 'margin-top: 8px; margin-bottom: 0')
-    clearDeleteBtn.innerHTML = 'Clear Staged Deletions'
-    panelDiv.appendChild(clearDeleteBtn)
-    clearDeleteBtn.addEventListener('click', function() {
-        clearAllCalSummaryDeletions()
+    var clearBtn = document.createElement('button')
+    clearBtn.setAttribute('type', 'button')
+    clearBtn.id = 'calSummaryClearStagedBtn'
+    clearBtn.classList.add('btn', 'btn-info', 'btn-block', 'btn-sm')
+    clearBtn.setAttribute('style', 'margin-top: 8px; margin-bottom: 0')
+    clearBtn.innerHTML = 'Clear Staged Changes'
+    panelDiv.appendChild(clearBtn)
+    clearBtn.addEventListener('click', function() {
+        clearAllCalSummaryStagedChanges()
     })
 
     getCalibrationHeightSummary()
@@ -10315,27 +10289,16 @@ function stageCalSummaryDeletion() {
     finishCalSummaryDeletion()
 }
 
-function cancelCalSummaryDeletion() {
-    /** Unstages deletion for the selected cameras only. */
-    var selected = getSelectedCalSummaryCameragroups()
-    if (selected.length === 0) return
-    for (var s = 0; s < selected.length; s++) {
-        var images = selected[s].images
-        for (var i = 0; i < images.length; i++) {
-            var idx = deletedCalImages.indexOf(images[i].id)
-            if (idx !== -1) deletedCalImages.splice(idx, 1)
-        }
-    }
-    finishCalSummaryDeletion()
-}
-
-function clearAllCalSummaryDeletions() {
-    /** Unstages every calibration image deletion in the survey. */
+function clearAllCalSummaryStagedChanges() {
+    /** Clears staged height edits and image deletions in the summary view. */
+    editedCalHeights = {}
     deletedCalImages = []
     var selectAll = document.getElementById('selectAllCalCameras')
     if (selectAll) selectAll.checked = false
     clearCalSummarySelection()
-    buildCalSummaryTable()
+    getCalibrationHeightSummary()
+    var statusMsg = document.getElementById('calSummaryStatusMsg')
+    if (statusMsg) statusMsg.innerHTML = '<i>Staged changes cleared.</i>'
 }
 
 function finishCalSummaryDeletion() {
@@ -11321,7 +11284,7 @@ function buildDepthEstimation() {
     var launchBtn = document.createElement('button')
     launchBtn.id = 'depthLaunchBtn'
     launchBtn.classList.add('btn', 'btn-primary', 'btn-block')
-    launchBtn.innerHTML = 'Launch Distance Estimation'
+    launchBtn.innerHTML = 'Launch Morphometrics Estimation'
     launchBtn.disabled = true
     launchBtn.onclick = function() { launchDepthEstimationFromUI() }
     col.appendChild(launchBtn)
@@ -11735,7 +11698,7 @@ function renderDepthEstimationPrimer(preview, speciesList) {
         {text: 'Site', width: '10%'},
         {text: 'Camera', width: '16%'},
         {text: 'Sightings With Distances', width: '16%'},
-        {text: 'Sightings With Keypoints (For Height & Back Length)', width: '18%'},
+        {text: 'Sightings With Pose Keypoints', width: '18%'},
         {text: 'Calibration<br>Images', width: '10%'},
         {text: 'Height', width: '15%'},
         {text: 'Status', width: '22%'}
