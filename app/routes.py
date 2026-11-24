@@ -13572,6 +13572,26 @@ def saveIntegrations():
                         db.session.add(live_integration)
                         new_api_keys.append({'api_key': api_key, 'survey_id': live['survey_id']})
 
+            # Read-only API (one key per organisation)
+            read_integrations = integrations.get('readapi', {'new': [], 'deleted': []})
+            read_deleted = read_integrations['deleted']
+            read_new = read_integrations['new']
+
+            if Config.DEBUGGING: app.logger.info('Read-only API integrations {}'.format(read_integrations))
+
+            db.session.query(ReadAPIKey).filter(ReadAPIKey.id.in_(read_deleted)).filter(ReadAPIKey.organisation_id.in_(admin_orgs)).delete(synchronize_session=False)
+
+            for read in read_new:
+                if int(read['org_id']) in admin_orgs:
+                    check = db.session.query(ReadAPIKey).filter(ReadAPIKey.organisation_id==int(read['org_id'])).first()
+                    if not check:
+                        keys = generate_read_api_key()
+                        read_key = ReadAPIKey(api_key=keys['hashed_key'], organisation_id=int(read['org_id']), created=datetime.utcnow())
+                        db.session.add(read_key)
+                        db.session.flush()
+                        organisation = db.session.query(Organisation).get(int(read['org_id']))
+                        new_api_keys.append({'api_key': keys['api_key'], 'label': organisation.name + ' (read-only API)', 'key_id': 'read-'+str(read_key.id)})
+
             db.session.commit()
             status = 'SUCCESS'
             message = 'Integrations saved successfully.'
@@ -13631,6 +13651,21 @@ def getIntegrations():
                 'id': live_integration[0],
                 'survey_id': live_integration[1],
                 'survey': live_integration[2]
+            })
+
+        read_integrations = db.session.query(ReadAPIKey.id, Organisation.id, Organisation.name)\
+                                            .join(Organisation, ReadAPIKey.organisation_id==Organisation.id)\
+                                            .join(UserPermissions, UserPermissions.organisation_id==Organisation.id)\
+                                            .filter(UserPermissions.default=='admin')\
+                                            .filter(UserPermissions.user_id==current_user.id)\
+                                            .order_by(ReadAPIKey.id).distinct().all()
+
+        for read_integration in read_integrations:
+            integrations.append({
+                'integration': 'readapi',
+                'id': read_integration[0],
+                'organisation': read_integration[1],
+                'organisation_name': read_integration[2]
             })
 
     return json.dumps({'integrations': integrations})
@@ -16467,6 +16502,173 @@ def testSetup():
             return json.dumps({'message': 'No destination survey.'}), 400
     else:
         return json.dumps({'message': 'Unauthorized access.'}), 401
+
+##################################### Read-only API #####################################
+# Read-only endpoints for outside tools (dashboards, R/Python scripts). Authenticated with an
+# organisation's read-only key in the "apikey" header (Settings > Integrations > Read-only API).
+# They only read data, apart from asking for a CSV export to be built, which is the same as
+# clicking export in the web page. A key only sees its own organisation's surveys.
+
+def readApiSurveyStatus(status):
+    '''Simplifies a survey status the same way the surveys page does.'''
+    if not status: return status
+    if status in ['indprocessing','Preparing Download']: return 'Processing'
+    if 'failed' in status.lower(): return 'Failed'
+    if 'preprocessing' in status.lower(): return status.split(',')[0]
+    return status
+
+def readApiExportUrl(organisation, user_name, survey_name, task_name, name):
+    '''Builds an export's download URL the same way getDownloadRequests does.'''
+    return 'https://'+Config.BUCKET+'.s3.amazonaws.com/'+(organisation.folder+'/docs/'+organisation.name+'_'+user_name+'_'+survey_name+'_'+task_name+'_'+name+'.'+Config.RESULT_TYPES['csv']).replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
+
+@app.route('/api/v1/surveys', methods=['GET'])
+def apiGetSurveys():
+    ''' Read-only API: lists the organisation's surveys and the annotation work remaining on each of their tasks. '''
+    organisation_id = get_read_api_organisation(request)
+    if not organisation_id:
+        return json.dumps({'message': 'Unauthorized access.'}), 401
+
+    rows = db.session.query(Survey.id, Survey.name, Survey.status, Survey.start_date, Survey.end_date, Survey.image_count, Survey.video_count,
+                            Organisation.name, Area.name, Task.id, Task.name, Task.status, Task.tagging_level, Task.cluster_count)\
+                        .join(Organisation, Survey.organisation_id==Organisation.id)\
+                        .outerjoin(Area, Survey.area_id==Area.id)\
+                        .outerjoin(Task, and_(Task.survey_id==Survey.id, Task.name!='default', ~Task.name.contains('_o_l_d_'), ~Task.name.contains('_copying')))\
+                        .filter(Survey.organisation_id==organisation_id)\
+                        .order_by(desc(Survey.id), Task.id).all()
+
+    survey_ids = list(set([r[0] for r in rows]))
+    jobs_completed = {}
+    if survey_ids:
+        jobs_completed = {r[0] : r[1] for r in db.session.query(Task.id,(func.count(Turkcode.id)-Task.jobs_finished).label('count'))\
+                                    .join(Turkcode)\
+                                    .join(User)\
+                                    .filter(Task.survey_id.in_(survey_ids))\
+                                    .filter(User.parent_id!=None)\
+                                    .filter(Turkcode.tagging_time!=None)\
+                                    .group_by(Task.id).all()}
+
+    surveys = {}
+    for row in rows:
+        survey_id = row[0]
+        if survey_id not in surveys:
+            surveys[survey_id] = {
+                'id': survey_id,
+                'name': row[1],
+                'status': readApiSurveyStatus(row[2]),
+                'start_date': row[3].strftime('%Y-%m-%d') if row[3] else None,
+                'end_date': row[4].strftime('%Y-%m-%d') if row[4] else None,
+                'image_count': row[5],
+                'video_count': row[6],
+                'organisation': row[7],
+                'area': row[8],
+                'tasks': []
+            }
+        task_id = row[9]
+        if task_id:
+            clusters_remaining = GLOBALS.redisClient.get('clusters_remaining_'+str(task_id))
+            clusters_remaining = int(clusters_remaining.decode()) if clusters_remaining else None
+            surveys[survey_id]['tasks'].append({
+                'id': task_id,
+                'name': row[10],
+                'status': row[11],
+                'tagging_level': row[12],
+                'clusters_total': row[13],
+                'clusters_remaining': clusters_remaining,
+                'jobs_available': GLOBALS.redisClient.scard('job_pool_'+str(task_id)),
+                'jobs_completed': jobs_completed.get(task_id, 0)
+            })
+
+    return json.dumps({'surveys': list(surveys.values())})
+
+@app.route('/api/v1/tasks/<int:task_id>/csv', methods=['POST'])
+def apiRequestCSV(task_id):
+    ''' Read-only API: asks for the standard CSV of a task (the same file as the pre-formatted CSV in the web page).
+    Returns an export_id to check with /api/v1/exports/<export_id>. '''
+    organisation_id = get_read_api_organisation(request)
+    if not organisation_id:
+        return json.dumps({'message': 'Unauthorized access.'}), 401
+
+    task = db.session.query(Task).get(task_id)
+    if (task == None) or (task.survey.organisation_id != organisation_id) or (task.name == 'default'):
+        return json.dumps({'status': 'error', 'message': 'Task not found.'}), 404
+
+    if task.survey.status.lower() not in Config.SURVEY_READY_STATUSES or task.status.lower() not in Config.TASK_READY_STATUSES:
+        return json.dumps({'status': 'error', 'message': 'The survey is currently unavailable. Please wait for the survey to be ready.'}), 409
+
+    # Exports belong to a user, so API exports are made as the organisation's root user.
+    organisation = task.survey.organisation
+    root_user = db.session.query(User).get(organisation.root_user_id) if organisation.root_user_id else None
+    if root_user == None:
+        return json.dumps({'status': 'error', 'message': 'This organisation has no root user to make the export for.'}), 409
+
+    check = db.session.query(DownloadRequest).filter(DownloadRequest.task_id==task_id).filter(DownloadRequest.user_id==root_user.id).filter(DownloadRequest.type=='csv').filter(DownloadRequest.status=='Pending').first()
+    if check:
+        return json.dumps({'status': 'success', 'export_id': check.id, 'message': 'An export for this task is already being built.'})
+
+    download_request = DownloadRequest(type='csv', user_id=root_user.id, task_id=task_id, status='Pending', timestamp=None)
+    db.session.add(download_request)
+    db.session.commit()
+
+    response = generate_csv_parent.apply_async(kwargs={
+        'selectedTasks': [task_id],
+        'selectedLevel': 'Image',
+        'requestedColumns': ['Site Name', 'Latitude', 'Longitude', 'Timestamp', 'Species', 'Sighting Count', 'Image URL'],
+        'custom_columns': {str(task_id): {}},
+        'label_type': 'list',
+        'includes': [],
+        'excludes': [],
+        'startDate': None,
+        'endDate': None,
+        'column_translations': {},
+        'user_name': root_user.username,
+        'download_id': download_request.id
+    }, queue='default')
+
+    download_request.celery_id = response.id
+    db.session.commit()
+
+    return json.dumps({'status': 'success', 'export_id': download_request.id})
+
+@app.route('/api/v1/exports/<int:export_id>', methods=['GET'])
+def apiGetExport(export_id):
+    ''' Read-only API: status of an export requested with /api/v1/tasks/<task_id>/csv, with its download URL once ready. '''
+    organisation_id = get_read_api_organisation(request)
+    if not organisation_id:
+        return json.dumps({'message': 'Unauthorized access.'}), 401
+
+    download_request = db.session.query(DownloadRequest).get(export_id)
+    task = db.session.query(Task).get(download_request.task_id) if download_request else None
+    organisation = task.survey.organisation if task else None
+    if (task == None) or (organisation.id != organisation_id) or (download_request.type != 'csv') or (download_request.user_id != organisation.root_user_id):
+        return json.dumps({'status': 'error', 'message': 'Export not found.'}), 404
+
+    if download_request.status == 'Available':
+        if download_request.timestamp and download_request.timestamp > datetime.utcnow():
+            root_user = db.session.query(User).get(organisation.root_user_id)
+            return json.dumps({
+                'status': 'ready',
+                'url': readApiExportUrl(organisation, root_user.username, task.survey.name, task.name, download_request.name or ''),
+                'expires': download_request.timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+            })
+        return json.dumps({'status': 'expired'})
+
+    return json.dumps({'status': 'pending'})
+
+@app.route('/generateNewReadAPIKey/<integration_id>')
+@login_required
+def generateNewReadAPIKey(integration_id):
+    ''' Replaces an organisation's read-only API key with a new one (the old key stops working). Organisation admins only. '''
+    api_key_info = []
+    if current_user and current_user.is_authenticated:
+        read_key = db.session.query(ReadAPIKey).get(integration_id)
+        if read_key and checkDefaultAdminPermission(current_user.id, read_key.organisation_id):
+            organisation = db.session.query(Organisation).get(read_key.organisation_id)
+            keys = generate_read_api_key()
+            read_key.api_key = keys['hashed_key']
+            read_key.created = datetime.utcnow()
+            db.session.commit()
+            api_key_info.append({'api_key': keys['api_key'], 'label': organisation.name + ' (read-only API)', 'key_id': 'read-'+str(read_key.id)})
+    return json.dumps({'api_keys': api_key_info})
 
 @app.route('/generateNewAPIKey/<integration_id>')
 @login_required

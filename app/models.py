@@ -709,6 +709,17 @@ class APIKey(db.Model):
     def __repr__(self):
         return '<APIKey for {}>'.format(self.survey_id)
 
+class ReadAPIKey(db.Model):
+    '''A read-only API key for an organisation. Lets outside tools list the organisation's surveys
+    and request result exports. It can't change anything. Only the SHA-256 hash of the key is stored.'''
+    id = db.Column(db.Integer, primary_key=True)
+    api_key = db.Column(db.String(64), index=True, unique=True)
+    organisation_id = db.Column(db.Integer, db.ForeignKey('organisation.id'), index=True, unique=False)
+    created = db.Column(db.DateTime, index=False)
+
+    def __repr__(self):
+        return '<ReadAPIKey for organisation {}>'.format(self.organisation_id)
+
 class ClassificationLabel(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     classification = db.Column(db.String(64), index=True)

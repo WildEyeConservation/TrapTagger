@@ -4548,6 +4548,23 @@ def generate_api_key(survey_id=None):
         hashed_key = hashlib.md5(api_key.encode()).hexdigest()
     return {'api_key':api_key,'hashed_key':hashed_key}
 
+def generate_read_api_key():
+    '''Generates a read-only organisation API key. Returns the key (shown to the user once) and its SHA-256 hash (stored).'''
+    while True:
+        api_key = secrets.token_urlsafe(32)
+        hashed_key = hashlib.sha256(api_key.encode()).hexdigest()
+        if not db.session.query(ReadAPIKey).filter(ReadAPIKey.api_key==hashed_key).first():
+            return {'api_key':api_key,'hashed_key':hashed_key}
+
+def get_read_api_organisation(request):
+    '''Returns the organisation ID for the read-only API key in the request's "apikey" header, or None.'''
+    api_key = request.headers.get('apikey')
+    if not api_key:
+        return None
+    hashed_key = hashlib.sha256(api_key.encode()).hexdigest()
+    read_key = db.session.query(ReadAPIKey).filter(ReadAPIKey.api_key==hashed_key).first()
+    return read_key.organisation_id if read_key else None
+
 def generate_site_name(survey_id):
     '''Generates a unique site name for a new site'''
     site_count = db.session.query(Trapgroup).filter(Trapgroup.survey_id==survey_id).filter(Trapgroup.tag.like('Site%')).count()
