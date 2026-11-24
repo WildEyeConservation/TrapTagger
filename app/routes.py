@@ -16530,7 +16530,7 @@ def apiGetSurveys():
 
     rows = db.session.query(Survey.id, Survey.name, Survey.status, Survey.start_date, Survey.end_date, Survey.image_count, Survey.video_count,
                             Organisation.name, Area.name, Task.id, Task.name, Task.status, Task.tagging_level, Task.cluster_count,
-                            Task.unlabelled_animal_cluster_count, Task.class_check_count)\
+                            Task.unlabelled_animal_cluster_count, Task.class_check_count, Task.ai_check_complete)\
                         .join(Organisation, Survey.organisation_id==Organisation.id)\
                         .outerjoin(Area, Survey.area_id==Area.id)\
                         .outerjoin(Task, and_(Task.survey_id==Survey.id, Task.name!='default', ~Task.name.contains('_o_l_d_'), ~Task.name.contains('_copying')))\
@@ -16594,7 +16594,8 @@ def apiGetSurveys():
                 # Work left in each annotation stage (the counts the launch dialog shows); 0 = stage done
                 'stages': {
                     'species': row[14],                 # animal clusters with no species label
-                    'ai_check': row[15],                # clusters awaiting the AI check
+                    'ai_check': 0 if row[16] else row[15],   # 0 once an AI check job has finished (ai_check_complete, the
+                                                             # details view's "Checked"); else clusters the check would look at
                     'sightings': label_totals.get(task_id, {}).get('sightings', 0),   # unchecked sightings (boxes)
                     'info_tags': label_totals.get(task_id, {}).get('info_tags', 0)    # labelled clusters without info tags
                 }
