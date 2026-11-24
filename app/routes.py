@@ -16529,7 +16529,8 @@ def apiGetSurveys():
         return json.dumps({'message': 'Unauthorized access.'}), 401
 
     rows = db.session.query(Survey.id, Survey.name, Survey.status, Survey.start_date, Survey.end_date, Survey.image_count, Survey.video_count,
-                            Organisation.name, Area.name, Task.id, Task.name, Task.status, Task.tagging_level, Task.cluster_count)\
+                            Organisation.name, Area.name, Task.id, Task.name, Task.status, Task.tagging_level, Task.cluster_count,
+                            Task.unlabelled_animal_cluster_count, Task.class_check_count)\
                         .join(Organisation, Survey.organisation_id==Organisation.id)\
                         .outerjoin(Area, Survey.area_id==Area.id)\
                         .outerjoin(Task, and_(Task.survey_id==Survey.id, Task.name!='default', ~Task.name.contains('_o_l_d_'), ~Task.name.contains('_copying')))\
@@ -16546,6 +16547,20 @@ def apiGetSurveys():
                                     .filter(User.parent_id!=None)\
                                     .filter(Turkcode.tagging_time!=None)\
                                     .group_by(Task.id).all()}
+
+    # Per-task totals of the per-label counts behind the launch dialog's "Sighting Correction" and
+    # "Informational Tagging" options (vehicles/humans/livestock are kept on the task, not a label,
+    # so they are left out). None while any label's count hasn't been calculated yet.
+    label_totals = {}
+    task_ids = list(set([r[9] for r in rows if r[9]]))
+    if task_ids:
+        for r in db.session.query(Label.task_id, func.count(Label.id), func.count(Label.bounding_count), func.sum(Label.bounding_count),
+                                  func.count(Label.info_tag_count), func.sum(Label.info_tag_count))\
+                            .filter(Label.task_id.in_(task_ids)).group_by(Label.task_id).all():
+            label_totals[r[0]] = {
+                'sightings': int(r[3] or 0) if r[2]==r[1] else None,
+                'info_tags': int(r[5] or 0) if r[4]==r[1] else None
+            }
 
     surveys = {}
     for row in rows:
@@ -16575,7 +16590,14 @@ def apiGetSurveys():
                 'clusters_total': row[13],
                 'clusters_remaining': clusters_remaining,
                 'jobs_available': GLOBALS.redisClient.scard('job_pool_'+str(task_id)),
-                'jobs_completed': jobs_completed.get(task_id, 0)
+                'jobs_completed': jobs_completed.get(task_id, 0),
+                # Work left in each annotation stage (the counts the launch dialog shows); 0 = stage done
+                'stages': {
+                    'species': row[14],                 # animal clusters with no species label
+                    'ai_check': row[15],                # clusters awaiting the AI check
+                    'sightings': label_totals.get(task_id, {}).get('sightings', 0),   # unchecked sightings (boxes)
+                    'info_tags': label_totals.get(task_id, {}).get('info_tags', 0)    # labelled clusters without info tags
+                }
             })
 
     return json.dumps({'surveys': list(surveys.values())})
