@@ -16548,18 +16548,22 @@ def apiGetSurveys():
                                     .filter(Turkcode.tagging_time!=None)\
                                     .group_by(Task.id).all()}
 
-    # Per-task totals of the per-label counts behind the launch dialog's "Sighting Correction" and
-    # "Informational Tagging" options (vehicles/humans/livestock are kept on the task, not a label,
-    # so they are left out). None while any label's count hasn't been calculated yet.
+    # Per-task totals from the per-label counts behind the details view (vehicles/humans/livestock are
+    # kept on the task, not a label, so they are left out). None while any label's count hasn't been
+    # calculated yet.
+    #   sightings: unchecked sightings, summed over labels ("Sighting Correction")
+    #   info_tags: species with clusters where no cluster has an info tag yet, i.e. the details view's
+    #              "Informational Tagging: Tagged = No" (cluster_count - info_tag_count == 0)
     label_totals = {}
     task_ids = list(set([r[9] for r in rows if r[9]]))
     if task_ids:
         for r in db.session.query(Label.task_id, func.count(Label.id), func.count(Label.bounding_count), func.sum(Label.bounding_count),
-                                  func.count(Label.info_tag_count), func.sum(Label.info_tag_count))\
+                                  func.count(Label.info_tag_count), func.count(Label.cluster_count),
+                                  func.sum(case((and_(Label.cluster_count>0, Label.info_tag_count>=Label.cluster_count), 1), else_=0)))\
                             .filter(Label.task_id.in_(task_ids)).group_by(Label.task_id).all():
             label_totals[r[0]] = {
                 'sightings': int(r[3] or 0) if r[2]==r[1] else None,
-                'info_tags': int(r[5] or 0) if r[4]==r[1] else None
+                'info_tags': int(r[6] or 0) if (r[4]==r[1] and r[5]==r[1]) else None
             }
 
     surveys = {}
@@ -16597,7 +16601,7 @@ def apiGetSurveys():
                     'ai_check': 0 if row[16] else row[15],   # 0 once an AI check job has finished (ai_check_complete, the
                                                              # details view's "Checked"); else clusters the check would look at
                     'sightings': label_totals.get(task_id, {}).get('sightings', 0),   # unchecked sightings (boxes)
-                    'info_tags': label_totals.get(task_id, {}).get('info_tags', 0)    # labelled clusters without info tags
+                    'info_tags': label_totals.get(task_id, {}).get('info_tags', 0)    # species not info-tagged at all yet
                 }
             })
 
