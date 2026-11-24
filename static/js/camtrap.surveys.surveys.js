@@ -5074,13 +5074,13 @@ function buildStatusTable(labels,headings) {
     table.classList.add('table-bordered')
     tableDiv.appendChild(table)
 
-    // Keep the table on one screen. The named summary and species columns are narrower so Keypoints Checked fits.
+    // Keep the table on one screen. Single-column groups use a merged header.
     var columnWidths = {
         'Summary': {'Clusters': '5%', 'Images': '4%', 'Sightings': '5.5%', 'Individuals': '6%'},
         'Species Annotation': {'Tagged': '4.2%', 'Complete': '5.5%'},
-        'Informational Tagging': {'Tagged': '7%'},
-        'Distance Estimation': {'Sightings With Distances': '8%'},
-        'Keypoints': {'Checked Sightings': '7%'}
+        'Informational Tags Added': {'Informational Tags Added': '7%'},
+        'Sightings With Distances': {'Sightings With Distances': '8%'},
+        'Pose Keypoints Checked': {'Pose Keypoints Checked': '7%'}
     }
     colgroup = document.createElement('colgroup')
     table.appendChild(colgroup)
@@ -5100,7 +5100,7 @@ function buildStatusTable(labels,headings) {
     thead = document.createElement('thead')
     table.appendChild(thead)
 
-    //Top row headings
+    // Top row headings. Single-column groups span both header rows.
     tableRow = document.createElement('tr')
     tableCol = document.createElement('th')
     tableCol.setAttribute('scope','col')
@@ -5110,8 +5110,13 @@ function buildStatusTable(labels,headings) {
     for (let heading in headings) {
         tableCol = document.createElement('th')
         tableCol.setAttribute('scope','col')
-        tableCol.setAttribute('style','border-bottom: 1px solid white')
-        tableCol.setAttribute('colspan',headings[heading].length)
+        if (headings[heading].length === 1) {
+            tableCol.setAttribute('rowspan', '2')
+            tableCol.setAttribute('style', 'border-bottom: 1px solid white; vertical-align: middle')
+        } else {
+            tableCol.setAttribute('colspan', headings[heading].length)
+            tableCol.setAttribute('style', 'border-bottom: 1px solid white')
+        }
         tableRow.appendChild(tableCol)
 
         thdiv = document.createElement('div')
@@ -5120,7 +5125,7 @@ function buildStatusTable(labels,headings) {
     }
     thead.appendChild(tableRow)
 
-    //bottom row headings
+    // Bottom row headings (multi-column groups only)
     tableRow = document.createElement('tr')
     tableRow.setAttribute('class','stripe')
     tableCol = document.createElement('th')
@@ -5130,6 +5135,7 @@ function buildStatusTable(labels,headings) {
     tableRow.appendChild(tableCol)
 
     for (let heading in headings) {
+        if (headings[heading].length === 1) continue
         for (let i=0;i<headings[heading].length;i++) {
             tableCol = document.createElement('th')
             tableCol.setAttribute('scope','col')
@@ -9973,18 +9979,6 @@ function buildCalSummaryMode() {
         stageCalSummaryHeightRemoval()
     })
 
-    if (!document.getElementById('calSummaryStatusStyle')) {
-        var statusStyle = document.createElement('style')
-        statusStyle.id = 'calSummaryStatusStyle'
-        statusStyle.innerHTML = '#calSummaryStatusMsg:empty { display: none; }'
-        document.head.appendChild(statusStyle)
-    }
-
-    var statusMsg = document.createElement('div')
-    statusMsg.id = 'calSummaryStatusMsg'
-    statusMsg.setAttribute('style', 'font-size: 80%; color: grey; margin-top: 8px; margin-bottom: 0')
-    panelDiv.appendChild(statusMsg)
-
     var deleteBtn = document.createElement('button')
     deleteBtn.setAttribute('type', 'button')
     deleteBtn.id = 'calSummaryDeleteImagesBtn'
@@ -10297,8 +10291,6 @@ function clearAllCalSummaryStagedChanges() {
     if (selectAll) selectAll.checked = false
     clearCalSummarySelection()
     getCalibrationHeightSummary()
-    var statusMsg = document.getElementById('calSummaryStatusMsg')
-    if (statusMsg) statusMsg.innerHTML = '<i>Staged changes cleared.</i>'
 }
 
 function finishCalSummaryDeletion() {
@@ -10320,40 +10312,21 @@ function clearCalSummarySelection() {
 
 function stageCalSummaryHeight() {
     /** Stages the entered height for every calibration image of the selected cameras. */
-    var statusMsg = document.getElementById('calSummaryStatusMsg')
     var selected = getSelectedCalSummaryCameragroups()
-    if (selected.length === 0) {
-        statusMsg.innerHTML = '<i>Select at least one camera.</i>'
-        return
-    }
+    if (selected.length === 0) return
 
     var height = parseFloat(document.getElementById('calSummaryHeightInput').value)
-    if (isNaN(height) || height <= 0) {
-        statusMsg.innerHTML = '<i>Enter a valid height.</i>'
-        return
-    }
+    if (isNaN(height) || height <= 0) return
 
-    var imageCount = stageCalHeightForCameragroups(selected, height)
-    statusMsg.innerHTML = imageCount === 0
-        ? '<i>The selected camera(s) are already at a height of ' + height + 'm.</i>'
-        : '<i>Staged a height of ' + height + 'm for ' + imageCount +
-            ' calibration image(s). Click Save Changes to apply.</i>'
+    stageCalHeightForCameragroups(selected, height)
 }
 
 function stageCalSummaryHeightRemoval() {
     /** Stages the removal of the heights of every calibration image of the selected cameras. */
-    var statusMsg = document.getElementById('calSummaryStatusMsg')
     var selected = getSelectedCalSummaryCameragroups()
-    if (selected.length === 0) {
-        statusMsg.innerHTML = '<i>Select at least one camera.</i>'
-        return
-    }
+    if (selected.length === 0) return
 
-    var imageCount = stageCalHeightForCameragroups(selected, null)
-    statusMsg.innerHTML = imageCount === 0
-        ? '<i>The selected camera(s) have no heights to remove.</i>'
-        : '<i>Staged the removal of the heights of ' + imageCount +
-            ' calibration image(s). Click Save Changes to apply.</i>'
+    stageCalHeightForCameragroups(selected, null)
 }
 
 function stageCalHeightForCameragroups(cameragroups, height) {
@@ -11623,8 +11596,8 @@ function formatDepthStatusColumn(cam) {
     if (!cam.launchable) return 'Skipped (' + cam.exclusion_reason + ')'
     var heights = cam.heights || []
     var work = 'Distance estimation only'
-    if (cam.needs_distance && cam.needs_height) work = 'Distance and height estimation'
-    else if (cam.needs_height) work = 'Height estimation only'
+    if (cam.needs_distance && cam.needs_height) work = 'Distance and pose keypoint estimation'
+    else if (cam.needs_height) work = 'Pose keypoint estimation only'
     else if (!heights.length) return 'Ready. Distance only (no calibration height).'
     var note = ''
     if (cam.needs_height && heights.length > 1) {

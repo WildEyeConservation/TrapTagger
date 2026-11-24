@@ -474,8 +474,6 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         query = query.add_columns(Detection.shoulder_height.label('Shoulder Height (cm)'))
     if 'Back Length (cm)' in required_columns:
         query = query.add_columns(Detection.back_length.label('Back Length (cm)'))
-    if 'Scale Factor' in required_columns:
-        query = query.add_columns(Cameragroup.scale_factor.label('Scale Factor'))
 
     query = query.distinct()
     df = pd.read_sql(query.statement,db.session.bind)
@@ -514,8 +512,6 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         if trapgroup_id: query = query.filter(Trapgroup.id==trapgroup_id)
         if startDate: query = query.filter(Image.corrected_timestamp>=startDate)
         if endDate: query = query.filter(Image.corrected_timestamp<=endDate)
-        if 'Scale Factor' in required_columns:
-            query = query.add_columns(Cameragroup.scale_factor.label('Scale Factor'))
         query = query.distinct()
 
         df2 = pd.read_sql(query.statement,db.session.bind)

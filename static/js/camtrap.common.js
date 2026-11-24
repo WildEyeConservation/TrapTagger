@@ -438,7 +438,9 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
                         sendBoundingBack()
                     }
                     else if(drawControl==null||(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode)){
-                        if (typeof isPoseReview === 'function' && isPoseReview()) {
+                        if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') {
+                            // Selection is driven by Previous/Next Detection, not box clicks.
+                        } else if (typeof isPoseReview === 'function' && isPoseReview()) {
                             poseSelectedId = wrapDet.id
                             poseShowMeasurements(wrapDet)
                             if (typeof posePaintBoxes === 'function') posePaintBoxes(mapID)
@@ -463,7 +465,7 @@ function buildDetection(image,detection,mapID = 'map1',colour=null) {
             // Highlights and un-highlight when right click on bounding box
             rect.addEventListener('contextmenu', function(wrapRect, wrapDet){
                 return function() {
-                    if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose' && wrapDet.unusable) return
+                    if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') return
                     if(drawControl==null||(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode)){
                         if (typeof isPoseReview === 'function' && isPoseReview()) {
                             poseSelectedId = wrapDet.id
@@ -4128,6 +4130,26 @@ document.onkeyup = function(event){
                 }
                 if (poseKey === '0' && typeof poseSkipCluster === 'function') {
                     poseSkipCluster()
+                    return
+                }
+                if (poseKey === 'l' && typeof poseChooseFlank === 'function') {
+                    poseChooseFlank('Left')
+                    return
+                }
+                if (poseKey === 'a' && typeof poseChooseFlank === 'function') {
+                    poseChooseFlank('Ambiguous')
+                    return
+                }
+                if (poseKey === 'r' && typeof poseChooseFlank === 'function') {
+                    poseChooseFlank('Right')
+                    return
+                }
+                if ((event.key === '[' || poseKey === '[') && typeof posePrevDetection === 'function') {
+                    posePrevDetection()
+                    return
+                }
+                if ((event.key === ']' || poseKey === ']') && typeof poseNextDetection === 'function') {
+                    poseNextDetection()
                     return
                 }
                 if (poseKey.length === 1 && ((poseKey >= '1' && poseKey <= '9') || (poseKey >= 'a' && poseKey <= 'z') || poseKey === ' ' || poseKey === '-')) return

@@ -3588,20 +3588,19 @@ def getDetailedTaskStatus(task_id):
                 'Complete'
             ],
             'AI Check': [
-                'Status'
-                # 'Potential Clusters'
+                'AI Check'
             ],
-            'Informational Tagging': [
-                'Tagged'
+            'Informational Tags Added': [
+                'Informational Tags Added'
             ],
-            'Sighting Correction': [
-                'Checked Sightings'
+            'Sighting Correction Checks': [
+                'Sighting Correction Checks'
             ],
-            'Distance Estimation': [
+            'Sightings With Distances': [
                 'Sightings With Distances'
             ],
-            'Keypoints': [
-                'Checked Sightings'
+            'Pose Keypoints Checked': [
+                'Pose Keypoints Checked'
             ],
             'Individual ID': [
                 'Cluster-Level',
@@ -3636,10 +3635,10 @@ def getDetailedTaskStatus(task_id):
                 reply['Summary'] = {}
                 reply['Species Annotation'] = {}
                 reply['AI Check'] = {}
-                reply['Informational Tagging'] = {}
-                reply['Sighting Correction'] = {}
-                reply['Distance Estimation'] = {}
-                reply['Keypoints'] = {}
+                reply['Informational Tags Added'] = {}
+                reply['Sighting Correction Checks'] = {}
+                reply['Sightings With Distances'] = {}
+                reply['Pose Keypoints Checked'] = {}
                 reply['Individual ID'] = {}
                 
                 if label_id==GLOBALS.vhl_id:
@@ -3681,21 +3680,21 @@ def getDetailedTaskStatus(task_id):
                                                         .distinct().count()
                                                         
                         reply['Summary']['Individuals'] = individual_count
-                    # Checked Sightings
+                    # Sighting correction checks
                     if sighting_count != 0:
                         checked_detections = sighting_count - bounding_count
                         checked_perc = round((checked_detections/sighting_count)*100,2)
-                        reply['Sighting Correction']['Checked Sightings'] = str(checked_detections) + '/' + str(sighting_count) + ' (' + str(checked_perc) + '%)'
+                        reply['Sighting Correction Checks']['Sighting Correction Checks'] = str(checked_detections) + '/' + str(sighting_count) + ' (' + str(checked_perc) + '%)'
                     else:
-                        reply['Sighting Correction']['Checked Sightings'] = '-'
+                        reply['Sighting Correction Checks']['Sighting Correction Checks'] = '-'
 
-                    # Distance Estimation — cached sightings with Detection.distance
+                    # Sightings with distances — cached Detection.distance
                     if sighting_count:
                         distance_filled = distance_count or 0
                         depth_perc = round((distance_filled/sighting_count)*100,2)
-                        reply['Distance Estimation']['Sightings With Distances'] = str(distance_filled) + '/' + str(sighting_count) + ' (' + str(depth_perc) + '%)'
+                        reply['Sightings With Distances']['Sightings With Distances'] = str(distance_filled) + '/' + str(sighting_count) + ' (' + str(depth_perc) + '%)'
                     else:
-                        reply['Distance Estimation']['Sightings With Distances'] = '-'
+                        reply['Sightings With Distances']['Sightings With Distances'] = '-'
 
                     if sighting_count:
                         keypoints_checked = db.session.query(func.count(distinct(Labelgroup.id)))\
@@ -3711,9 +3710,9 @@ def getDetailedTaskStatus(task_id):
                                             .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
                                             .scalar() or 0
                         keypoints_perc = round((keypoints_checked/sighting_count)*100, 2)
-                        reply['Keypoints']['Checked Sightings'] = str(keypoints_checked) + '/' + str(sighting_count) + ' (' + str(keypoints_perc) + '%)'
+                        reply['Pose Keypoints Checked']['Pose Keypoints Checked'] = str(keypoints_checked) + '/' + str(sighting_count) + ' (' + str(keypoints_perc) + '%)'
                     else:
-                        reply['Keypoints']['Checked Sightings'] = '-'
+                        reply['Pose Keypoints Checked']['Pose Keypoints Checked'] = '-'
 
                     # Species Annotation Status
                     if label.parent == None:
@@ -3756,21 +3755,17 @@ def getDetailedTaskStatus(task_id):
                         else:
                             reply['Species Annotation']['Tagged'] = 'No'
 
-                    # Informational Tagging
+                    # Informational tags added
                     if cluster_count - info_tag_count > 0:
-                        reply['Informational Tagging']['Tagged'] = 'Yes'
+                        reply['Informational Tags Added']['Informational Tags Added'] = 'Yes'
                     else:
-                        reply['Informational Tagging']['Tagged'] = 'No'
+                        reply['Informational Tags Added']['Informational Tags Added'] = 'No'
 
                     # AI Check
-                    # ids.append(label.id)
-
                     if task.ai_check_complete:
-                        reply['AI Check']['Status'] = 'Checked'
+                        reply['AI Check']['AI Check'] = 'Checked'
                     else:
-                        reply['AI Check']['Status'] = 'Not Checked'
-
-                    # reply['AI Check']['Potential Clusters'] = potential_clusters
+                        reply['AI Check']['AI Check'] = 'Not Checked'
 
                     # Individual ID
                     if label_id==GLOBALS.vhl_id:
@@ -3807,12 +3802,11 @@ def getDetailedTaskStatus(task_id):
                     reply['Summary']['Individuals'] = '-'
                     reply['Species Annotation']['Complete'] = '-'
                     reply['Species Annotation']['Tagged'] = '-'
-                    reply['AI Check']['Status'] = '-'
-                    # reply['AI Check']['Potential Clusters'] = '-'
-                    reply['Informational Tagging']['Tagged'] = '-'
-                    reply['Sighting Correction']['Checked Sightings'] = '-'
-                    reply['Distance Estimation']['Sightings With Distances'] = '-'
-                    reply['Keypoints']['Checked Sightings'] = '-'
+                    reply['AI Check']['AI Check'] = '-'
+                    reply['Informational Tags Added']['Informational Tags Added'] = '-'
+                    reply['Sighting Correction Checks']['Sighting Correction Checks'] = '-'
+                    reply['Sightings With Distances']['Sightings With Distances'] = '-'
+                    reply['Pose Keypoints Checked']['Pose Keypoints Checked'] = '-'
                     reply['Individual ID']['Cluster-Level'] = '-'
                     reply['Individual ID']['Inter-Cluster'] = '-'
                     reply['Individual ID']['Exhaustive'] = '-'

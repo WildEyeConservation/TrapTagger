@@ -723,6 +723,7 @@ function taggingMapPrep(mapID = 'map1') {
 
     map[mapID].on('contextmenu', function (e) {
         /** remove duplicate items on more than one right click */
+        if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') return
         if(!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
             nr_items = 3
             if(map[mapID].contextmenu._items.length > nr_items){
@@ -755,6 +756,10 @@ function taggingMapPrep(mapID = 'map1') {
     });
 
     map[mapID].on('contextmenu.select', function (e) {
+        if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') {
+            if (typeof poseMenuOpen !== 'undefined') poseMenuOpen = false
+            return
+        }
         if (typeof poseMenuOpen !== 'undefined' && poseMenuOpen) {
             poseMenuOpen = false
             return
@@ -1157,10 +1162,11 @@ function updateTargetRect (e) {
 
 document.addEventListener('click', function(event){
     /** Un-highlights the selected bounding box */
-    if (event.target.closest && (event.target.closest('#divBtns') || event.target.closest('#modalPoseUnusable'))) return
+    if (event.target.closest && (event.target.closest('#divBtns') || event.target.closest('#modalPoseUnusable') || event.target.closest('#poseDetectionCountRow') || event.target.closest('#posePrevDetectionWrap') || event.target.closest('#poseNextDetectionWrap'))) return
     if (drawControl && !drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
         if (event.target.classList && event.target.classList.contains('leaflet-interactive')==false&&event.target.classList.contains('bounding-btn')==false&&event.target.classList.contains('select-all-bounding-btn')==false){
             if (!(event.target.classList.contains('label-btn')&&taggingLevel.includes('-2')&&document.getElementById('annotationLevelSelector').value == '-1')) {
+                if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') return
                 clearBoundingSelect()
                 if (typeof poseClearSelection === 'function' && typeof isPoseReview === 'function' && isPoseReview()) poseClearSelection()
             }
