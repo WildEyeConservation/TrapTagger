@@ -60,26 +60,34 @@ function isPoseReview() {
     return typeof taggingLevel === 'string' && taggingLevel.indexOf('-9') === 0
 }
 
+function isPoseExplore() {
+    return isPoseReview() && typeof isReviewing !== 'undefined' && isReviewing
+}
+
 function buildPoseReviewPanel(res) {
     if (divBtns == null) return
     while (divBtns.firstChild) {
         divBtns.removeChild(divBtns.firstChild)
     }
 
-    var mode = document.createElement('select')
-    mode.id = 'poseModeSelector'
-    mode.className = 'form-control'
-    mode.style.marginTop = '3px'
-    mode.style.marginBottom = '3px'
-    mode.add(new Option('Pose Keypoints', 'pose'))
-    mode.add(new Option('Species Labelling', 'species'))
-    mode.value = poseReviewMode
-    mode.addEventListener('change', function() {
-        poseReviewMode = this.value
-        switchToLabel = poseReviewMode === 'species'
-        poseRefresh()
-    })
-    divBtns.appendChild(mode)
+    if (isPoseExplore()) {
+        poseReviewMode = 'pose'
+    } else {
+        var mode = document.createElement('select')
+        mode.id = 'poseModeSelector'
+        mode.className = 'form-control'
+        mode.style.marginTop = '3px'
+        mode.style.marginBottom = '3px'
+        mode.add(new Option('Pose Keypoints', 'pose'))
+        mode.add(new Option('Species Labelling', 'species'))
+        mode.value = poseReviewMode
+        mode.addEventListener('change', function() {
+            poseReviewMode = this.value
+            switchToLabel = poseReviewMode === 'species'
+            poseRefresh()
+        })
+        divBtns.appendChild(mode)
+    }
 
     var flankLabel = document.createElement('div')
     flankLabel.id = 'poseFlankLabel'
@@ -95,16 +103,19 @@ function buildPoseReviewPanel(res) {
     flankRow.id = 'poseFlankRow'
     flankRow.style.margin = '4px 0 8px 0'
     flankRow.style.display = 'flex'
-    flankRow.style.gap = '4px'
+    flankRow.style.flexDirection = 'column'
+    flankRow.style.gap = '2px'
     POSE_FLANKS.forEach(function(name) {
         var button = document.createElement('button')
         button.type = 'button'
         button.id = 'poseFlank' + name
         button.innerHTML = name === 'Ambiguous' ? 'Ambiguous (A)' : (name + ' (' + name.charAt(0) + ')')
-        button.className = 'btn btn-sm'
-        button.style.flex = '1'
-        button.style.padding = '4px 2px'
-        button.style.fontSize = '85%'
+        button.className = 'btn btn-sm btn-block'
+        button.style.width = '100%'
+        button.style.padding = '5px 8px'
+        button.style.marginTop = '0'
+        button.style.marginBottom = '0'
+        button.style.fontSize = '110%'
         button.style.background = '#ffffff'
         button.style.color = '#333333'
         button.style.border = '1px solid #cccccc'
@@ -141,7 +152,7 @@ function buildPoseReviewPanel(res) {
     imageUnusable.id = 'poseImageUnusableButton'
     imageUnusable.className = 'btn btn-danger btn-block btn-sm'
     imageUnusable.style.marginTop = '3px'
-    imageUnusable.innerHTML = 'Mark Image Unusable'
+    imageUnusable.innerHTML = 'Mark Image Unusable (I)'
     imageUnusable.addEventListener('click', function(event) {
         event.preventDefault()
         event.stopPropagation()
@@ -153,7 +164,7 @@ function buildPoseReviewPanel(res) {
     clusterUnusable.id = 'poseClusterUnusableButton'
     clusterUnusable.className = 'btn btn-danger btn-block btn-sm'
     clusterUnusable.style.marginTop = '3px'
-    clusterUnusable.innerHTML = 'Mark Cluster Unusable'
+    clusterUnusable.innerHTML = 'Mark Cluster Unusable (C)'
     clusterUnusable.addEventListener('click', function(event) {
         event.preventDefault()
         event.stopPropagation()
@@ -161,62 +172,66 @@ function buildPoseReviewPanel(res) {
     })
     divBtns.appendChild(clusterUnusable)
 
-    var speciesDiv = document.createElement('div')
-    speciesDiv.id = 'poseSpeciesButtons'
-    speciesDiv.style.display = 'none'
-    var multiple = document.createElement('button')
-    multiple.id = 'multipleBtn'
-    multiple.className = 'btn btn-danger btn-block btn-sm'
-    multiple.style.marginTop = '3px'
-    multiple.innerHTML = 'Multiple Species (Ctrl)'
-    multiple.addEventListener('click', function() { activateMultiple() })
-    speciesDiv.appendChild(multiple)
-    poseHotkeyNames = []
-    if (res && res[0]) {
-        var labs = res[0]
-        var names = res[1]
-        for (var i = 0; i < labs.length; i++) {
-            hotkeys[i] = labs[i]
-            poseHotkeyNames[i] = names[i]
-            if (!names[i] || names[i] === 'N' || labs[i] == EMPTY_HOTKEY_ID) continue
-            var button = document.createElement('button')
-            var labelName = names[i]
-            if (i < 10) labelName += ' (' + String.fromCharCode(i + 48) + ')'
-            else if (i === labs.length - 3) labelName += ' (Space)'
-            else if (i === labs.length - 1) labelName += ' (-)'
-            else labelName += ' (' + String.fromCharCode(i + 55) + ')'
-            var buttonClass = 'btn-primary'
-            if (names[i] === 'Skip' || names[i] === 'Wrong' || names[i] === 'Mask Area' || names[i] === 'Remove False Detections') buttonClass = 'btn-danger'
-            else if (i >= 10 && i !== labs.length - 3) buttonClass = 'btn-info'
-            button.className = 'btn btn-block btn-sm ' + buttonClass
-            button.style.marginTop = '3px'
-            button.innerHTML = labelName
-            button.setAttribute('data-label', names[i])
-            button.addEventListener('click', function(event) {
-                var chosen = event.currentTarget.getAttribute('data-label')
-                if (chosen === 'Skip') poseSkipCluster()
-                else poseSetSpecies(chosen)
-            })
-            speciesDiv.appendChild(button)
+    if (!isPoseExplore()) {
+        var speciesDiv = document.createElement('div')
+        speciesDiv.id = 'poseSpeciesButtons'
+        speciesDiv.style.display = 'none'
+        var multiple = document.createElement('button')
+        multiple.id = 'multipleBtn'
+        multiple.className = 'btn btn-danger btn-block btn-sm'
+        multiple.style.marginTop = '3px'
+        multiple.innerHTML = 'Multiple Species (Ctrl)'
+        multiple.addEventListener('click', function() { activateMultiple() })
+        speciesDiv.appendChild(multiple)
+        poseHotkeyNames = []
+        if (res && res[0]) {
+            var labs = res[0]
+            var names = res[1]
+            for (var i = 0; i < labs.length; i++) {
+                hotkeys[i] = labs[i]
+                poseHotkeyNames[i] = names[i]
+                if (!names[i] || names[i] === 'N' || labs[i] == EMPTY_HOTKEY_ID) continue
+                var button = document.createElement('button')
+                var labelName = names[i]
+                if (i < 10) labelName += ' (' + String.fromCharCode(i + 48) + ')'
+                else if (i === labs.length - 3) labelName += ' (Space)'
+                else if (i === labs.length - 1) labelName += ' (-)'
+                else labelName += ' (' + String.fromCharCode(i + 55) + ')'
+                var buttonClass = 'btn-primary'
+                if (names[i] === 'Skip' || names[i] === 'Wrong' || names[i] === 'Mask Area' || names[i] === 'Remove False Detections') buttonClass = 'btn-danger'
+                else if (i >= 10 && i !== labs.length - 3) buttonClass = 'btn-info'
+                button.className = 'btn btn-block btn-sm ' + buttonClass
+                button.style.marginTop = '3px'
+                button.innerHTML = labelName
+                button.setAttribute('data-label', names[i])
+                button.addEventListener('click', function(event) {
+                    var chosen = event.currentTarget.getAttribute('data-label')
+                    if (chosen === 'Skip') poseSkipCluster()
+                    else poseSetSpecies(chosen)
+                })
+                speciesDiv.appendChild(button)
+            }
         }
+        divBtns.appendChild(speciesDiv)
     }
-    divBtns.appendChild(speciesDiv)
 
-    var skip = document.createElement('button')
-    skip.id = 'poseSkipCluster'
-    skip.className = 'btn btn-danger btn-block btn-sm'
-    skip.style.marginTop = '3px'
-    skip.innerHTML = 'Skip (0)'
-    skip.addEventListener('click', poseSkipCluster)
-    divBtns.appendChild(skip)
+    if (!isPoseExplore()) {
+        var skip = document.createElement('button')
+        skip.id = 'poseSkipCluster'
+        skip.className = 'btn btn-danger btn-block btn-sm'
+        skip.style.marginTop = '3px'
+        skip.innerHTML = 'Skip (0)'
+        skip.addEventListener('click', poseSkipCluster)
+        divBtns.appendChild(skip)
 
-    var submit = document.createElement('button')
-    submit.id = 'poseSubmitCluster'
-    submit.className = 'btn btn-success btn-block btn-sm'
-    submit.style.marginTop = '3px'
-    submit.innerHTML = 'Submit (Ctrl)'
-    submit.addEventListener('click', function() { poseSubmitImage() })
-    divBtns.appendChild(submit)
+        var submit = document.createElement('button')
+        submit.id = 'poseSubmitCluster'
+        submit.className = 'btn btn-success btn-block btn-sm'
+        submit.style.marginTop = '3px'
+        submit.innerHTML = 'Submit (Ctrl)'
+        submit.addEventListener('click', function() { poseSubmitImage() })
+        divBtns.appendChild(submit)
+    }
 
     switchToLabel = false
     poseEnsureLegend()
@@ -227,24 +242,88 @@ function buildPoseReviewPanel(res) {
 function poseEnsureLegend() {
     var host = document.getElementById('poseLegendHost')
     if (!host) return
-    host.style.paddingTop = '40px'
-    host.style.paddingLeft = '4px'
-    host.style.fontSize = '75%'
-    host.style.lineHeight = '1.35'
-    host.style.color = '#dee2e6'
-    var html = '<div style="font-weight:600;margin-bottom:6px;">Keypoints</div>'
+    var html = '<div style="font-weight:700;margin-bottom:8px;font-size:120%;">Keypoints</div>'
     POSE_POINT_NAMES.forEach(function(name) {
         var colour = poseColourForName(name)
-        html += '<div style="display:flex;align-items:center;margin-bottom:3px;">'
-            + '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;'
+        html += '<div style="display:flex;align-items:center;margin-bottom:3px;min-width:0;font-size:100%;">'
+            + '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;'
             + 'background:' + colour.fill + ';border:1px solid ' + colour.edge + ';margin-right:6px;flex-shrink:0;"></span>'
-            + '<span style="word-break:break-word;">' + name + '</span></div>'
+            + '<span style="white-space:normal;overflow-wrap:break-word;word-break:keep-all;min-width:0;flex:1;">' + name + '</span></div>'
     })
     host.innerHTML = html
     host.style.display = (isPoseReview() && poseReviewMode === 'pose') ? 'block' : 'none'
+    if (map && map['map1'] && map['map1'].invalidateSize) {
+        setTimeout(function() { map['map1'].invalidateSize() }, 0)
+    }
+}
+
+function poseStyleNavButton(button) {
+    if (!button) return
+    button.style.whiteSpace = 'normal'
+    button.style.lineHeight = '1.25'
+    button.style.padding = '10px 8px'
+    button.style.minHeight = '48px'
+    button.style.height = 'auto'
+    button.style.fontSize = '95%'
+}
+
+function poseStyleExploreDetButton(button) {
+    if (!button) return
+    button.className = 'btn btn-secondary btn-sm'
+    button.style.cssText = 'width:auto; white-space:nowrap; margin:0; padding:6px 10px; line-height:1.5; height:auto; font-size:100%;'
+}
+
+function poseLayoutExploreNav() {
+    var detRow = document.getElementById('poseDetectionNavRow')
+    if (detRow) {
+        // Half-width columns so Prev Detection right-aligns to Prev Image's right edge
+        // (and may extend left past it), mirroring Next Detection under Next Image.
+        detRow.style.display = (isPoseReview() && poseReviewMode === 'pose') ? '' : 'none'
+        detRow.style.justifyContent = ''
+        detRow.style.alignItems = ''
+        detRow.style.flexWrap = ''
+    }
+    var prevWrap = document.getElementById('posePrevDetectionWrap')
+    var nextWrap = document.getElementById('poseNextDetectionWrap')
+    if (prevWrap) {
+        prevWrap.className = 'col-lg-6'
+        prevWrap.style.cssText = 'display:flex; justify-content:flex-end; padding-right:15px; padding-left:15px;'
+    }
+    if (nextWrap) {
+        nextWrap.className = 'col-lg-6'
+        nextWrap.style.cssText = 'display:flex; justify-content:flex-start; padding-left:15px; padding-right:15px;'
+    }
+    var prevDet = document.getElementById('posePrevDetection')
+    var nextDet = document.getElementById('poseNextDetection')
+    if (prevDet) {
+        prevDet.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Detection (Z)'
+        prevDet.onclick = function() { posePrevDetection() }
+        poseStyleExploreDetButton(prevDet)
+    }
+    if (nextDet) {
+        nextDet.innerHTML = 'Next Detection (X) <span style="font-size:100%">&#x276f;</span>'
+        nextDet.onclick = function() { poseNextDetection() }
+        poseStyleExploreDetButton(nextDet)
+    }
+    // Match Next Detection width to Previous Detection (longer label).
+    if (prevDet && nextDet) {
+        prevDet.style.width = 'auto'
+        nextDet.style.width = 'auto'
+        var matched = Math.ceil(Math.max(prevDet.offsetWidth, nextDet.offsetWidth))
+        if (matched > 0) {
+            prevDet.style.width = matched + 'px'
+            nextDet.style.width = matched + 'px'
+        }
+    }
+    poseUpdateDetectionCount()
 }
 
 function poseLayoutNav() {
+    if (isPoseExplore()) {
+        poseLayoutExploreNav()
+        return
+    }
+
     ;['backImage', 'prevImage', 'forwardImage'].forEach(function(id) {
         var button = document.getElementById(id)
         if (button && button.parentElement) button.parentElement.style.display = 'none'
@@ -256,77 +335,153 @@ function poseLayoutNav() {
         back.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Image'
         back.className = 'btn btn-primary btn-block'
         back.onclick = function() { poseBack() }
-        if (back.parentElement) back.parentElement.className = 'col-lg-2'
+        poseStyleNavButton(back)
+        if (back.parentElement) {
+            back.parentElement.className = ''
+            back.parentElement.style.cssText = 'flex:1 1 0; min-width:0; padding:0 4px;'
+        }
     }
     if (next) {
         next.innerHTML = 'Next Image <span style="font-size:100%">&#x276f;</span>'
         next.className = 'btn btn-primary btn-block'
         next.onclick = function() { nextImage() }
-        if (next.parentElement) next.parentElement.className = 'col-lg-2'
+        poseStyleNavButton(next)
+        if (next.parentElement) {
+            next.parentElement.className = ''
+            next.parentElement.style.cssText = 'flex:1 1 0; min-width:0; padding:0 4px;'
+        }
     }
 
     var prevDet = document.getElementById('posePrevDetection')
     var nextDet = document.getElementById('poseNextDetection')
     if (!prevDet && back && back.parentElement && back.parentElement.parentElement) {
         var row = back.parentElement.parentElement
+        row.style.cssText = 'display:flex; flex-wrap:nowrap; align-items:stretch; justify-content:center; width:100%;'
         var prevWrap = document.createElement('div')
-        prevWrap.className = 'col-lg-2'
         prevWrap.id = 'posePrevDetectionWrap'
+        prevWrap.style.cssText = 'flex:1 1 0; min-width:0; padding:0 4px;'
         prevDet = document.createElement('button')
         prevDet.id = 'posePrevDetection'
         prevDet.type = 'button'
         prevDet.className = 'btn btn-secondary btn-block'
-        prevDet.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Detection ([)'
+        prevDet.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Detection (Z)'
+        poseStyleNavButton(prevDet)
         prevWrap.appendChild(prevDet)
 
         var nextWrap = document.createElement('div')
-        nextWrap.className = 'col-lg-2'
         nextWrap.id = 'poseNextDetectionWrap'
+        nextWrap.style.cssText = 'flex:1 1 0; min-width:0; padding:0 4px;'
         nextDet = document.createElement('button')
         nextDet.id = 'poseNextDetection'
         nextDet.type = 'button'
         nextDet.className = 'btn btn-secondary btn-block'
-        nextDet.innerHTML = 'Next Detection (]) <span style="font-size:100%">&#x276f;</span>'
+        nextDet.innerHTML = 'Next Detection (X) <span style="font-size:100%">&#x276f;</span>'
+        poseStyleNavButton(nextDet)
         nextWrap.appendChild(nextDet)
 
         row.insertBefore(nextWrap, next ? next.parentElement : null)
         row.insertBefore(prevWrap, nextWrap)
-    }
-    if (prevDet) prevDet.onclick = function() { posePrevDetection() }
-    if (nextDet) nextDet.onclick = function() { poseNextDetection() }
-
-    var count = document.getElementById('poseDetectionCount')
-    if (!count) {
-        var navRow = back && back.parentElement ? back.parentElement.parentElement : null
-        if (navRow && navRow.parentElement) {
-            var countRow = document.createElement('div')
-            countRow.className = 'row justify-content-center'
-            countRow.id = 'poseDetectionCountRow'
-            countRow.style.marginTop = '2px'
-            var countCol = document.createElement('div')
-            countCol.className = 'col-lg-12'
-            countCol.style.textAlign = 'right'
-            countCol.style.paddingRight = '18%'
-            count = document.createElement('div')
-            count.id = 'poseDetectionCount'
-            count.style.fontSize = '90%'
-            count.style.fontWeight = '600'
-            count.innerHTML = 'Detection - / -'
-            countCol.appendChild(count)
-            countRow.appendChild(countCol)
-            navRow.parentElement.insertBefore(countRow, navRow.nextSibling)
+    } else {
+        var prevWrapExisting = document.getElementById('posePrevDetectionWrap')
+        var nextWrapExisting = document.getElementById('poseNextDetectionWrap')
+        if (prevWrapExisting) {
+            prevWrapExisting.className = ''
+            prevWrapExisting.style.cssText = 'flex:1 1 0; min-width:0; padding:0 4px;'
+        }
+        if (nextWrapExisting) {
+            nextWrapExisting.className = ''
+            nextWrapExisting.style.cssText = 'flex:1 1 0; min-width:0; padding:0 4px;'
+        }
+        if (back && back.parentElement && back.parentElement.parentElement) {
+            back.parentElement.parentElement.style.cssText = 'display:flex; flex-wrap:nowrap; align-items:stretch; justify-content:center; width:100%;'
         }
     }
+    if (prevDet) {
+        prevDet.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Detection (Z)'
+        prevDet.onclick = function() { posePrevDetection() }
+        poseStyleNavButton(prevDet)
+    }
+    if (nextDet) {
+        nextDet.innerHTML = 'Next Detection (X) <span style="font-size:100%">&#x276f;</span>'
+        nextDet.onclick = function() { poseNextDetection() }
+        poseStyleNavButton(nextDet)
+    }
+
+    var oldCountRow = document.getElementById('poseDetectionCountRow')
+    if (oldCountRow && oldCountRow.parentElement) oldCountRow.parentElement.removeChild(oldCountRow)
+
     poseUpdateDetectionCount()
+}
+
+function poseClearExploreUi() {
+    var detRow = document.getElementById('poseDetectionNavRow')
+    if (detRow) detRow.style.display = 'none'
+    var count = document.getElementById('poseDetectionCount')
+    if (count) count.style.display = 'none'
+    var note = document.getElementById('poseEmptyNote')
+    if (note) note.style.display = 'none'
+    var host = document.getElementById('poseLegendHost')
+    if (host) {
+        host.style.display = 'none'
+        host.innerHTML = ''
+    }
+    if (map && map['map1'] && poseMarkers) {
+        map['map1'].removeLayer(poseMarkers)
+        poseMarkers = null
+    }
+    poseSelectedId = null
+    poseLastImageId = null
+    poseUpdateDrawTool()
+    if (map && map['map1']) {
+        addedDetections['map1'] = false
+        addDetections('map1')
+    }
+}
+
+function poseUpdateDetectionNavEnabled() {
+    var dets = poseOrderedDetections()
+    var enable = isPoseReview() && poseReviewMode === 'pose' && dets.length > 1
+    ;['posePrevDetection', 'poseNextDetection'].forEach(function(id) {
+        var button = document.getElementById(id)
+        if (!button) return
+        button.disabled = !enable
+        if (enable) button.classList.remove('disabled')
+        else button.classList.add('disabled')
+    })
+}
+
+function poseUpdateEmptyNote(detection) {
+    var note = document.getElementById('poseEmptyNote')
+    if (!note) return
+    var show = isPoseReview() && poseReviewMode === 'pose' && detection && !detection.unusable
+        && (!detection.keypoints || !detection.keypoints.length)
+    note.style.display = show ? 'block' : 'none'
 }
 
 function poseUpdateDetectionCount() {
     var node = document.getElementById('poseDetectionCount')
     if (!node) return
+    var speciesMode = poseReviewMode === 'species'
+    node.style.display = (!isPoseReview() || speciesMode) ? 'none' : 'block'
     var dets = poseOrderedDetections()
+    poseUpdateDetectionNavEnabled()
+    if (isPoseExplore()) {
+        var detRow = document.getElementById('poseDetectionNavRow')
+        if (detRow) detRow.style.display = (!speciesMode && isPoseReview()) ? '' : 'none'
+    }
+    if (!dets.length) {
+        node.innerHTML = 'Detection 0 / 0'
+        poseUpdateEmptyNote(null)
+        return
+    }
     var index = poseSelectedIndex()
-    if (!dets.length || index < 0) node.innerHTML = 'Detection - / -'
-    else node.innerHTML = 'Detection ' + (index + 1) + ' / ' + dets.length
+    if (index < 0) {
+        poseEnsureSelection(true)
+        index = poseSelectedIndex()
+    }
+    if (index < 0) index = 0
+    node.innerHTML = 'Detection ' + (index + 1) + ' / ' + dets.length
+    poseUpdateEmptyNote(dets[index])
 }
 
 function poseOrderedDetections() {
@@ -380,13 +535,14 @@ function poseSelectByIndex(index) {
 
 function poseRedrawPoseLayers(mapID) {
     if (!isPoseReview() || mapID !== 'map1') return
+    if (!map[mapID]) return
     if (poseMarkers) {
         map[mapID].removeLayer(poseMarkers)
         poseMarkers = null
     }
     posePaintBoxes(mapID)
     if (poseReviewMode !== 'pose') return
-    poseMarkers = L.layerGroup().addTo(map[mapID])
+    poseMarkers = L.layerGroup({pane: 'markerPane'}).addTo(map[mapID])
     var detection = poseSelectedDetection()
     if (detection && !detection.unusable) {
         var points = detection.keypoints || []
@@ -395,10 +551,15 @@ function poseRedrawPoseLayers(mapID) {
             poseAddMarker(mapID, detection, points[p])
         }
     }
+    // Keep keypoints above detection rectangles after any box restyle.
+    poseMarkers.eachLayer(function(marker) {
+        if (marker.bringToFront) marker.bringToFront()
+    })
 }
 
 function posePrevDetection() {
     if (!isPoseReview() || poseSubmitting) return
+    if (poseOrderedDetections().length <= 1) return
     var index = poseSelectedIndex()
     if (index < 0) {
         poseEnsureSelection(true)
@@ -410,6 +571,7 @@ function posePrevDetection() {
 
 function poseNextDetection() {
     if (!isPoseReview() || poseSubmitting) return
+    if (poseOrderedDetections().length <= 1) return
     var index = poseSelectedIndex()
     if (index < 0) {
         poseEnsureSelection(true)
@@ -445,15 +607,14 @@ function poseRefresh() {
     if (speciesDiv) speciesDiv.style.display = speciesMode ? 'block' : 'none'
     var submit = document.getElementById('poseSubmitCluster')
     var skip = document.getElementById('poseSkipCluster')
-    if (submit) submit.style.display = speciesMode ? 'none' : 'block'
-    if (skip) skip.style.display = speciesMode ? 'none' : 'block'
+    if (submit) submit.style.display = (speciesMode || isPoseExplore()) ? 'none' : 'block'
+    if (skip) skip.style.display = (speciesMode || isPoseExplore()) ? 'none' : 'block'
     var measurements = document.getElementById('poseMeasurements')
     var unusable = document.getElementById('poseUnusableButton')
     var imageUnusable = document.getElementById('poseImageUnusableButton')
     var clusterUnusable = document.getElementById('poseClusterUnusableButton')
     var flankLabel = document.getElementById('poseFlankLabel')
     var flankRow = document.getElementById('poseFlankRow')
-    var countRow = document.getElementById('poseDetectionCountRow')
     var prevWrap = document.getElementById('posePrevDetectionWrap')
     var nextWrap = document.getElementById('poseNextDetectionWrap')
     if (measurements) measurements.style.display = speciesMode ? 'none' : 'block'
@@ -461,10 +622,18 @@ function poseRefresh() {
     if (imageUnusable) imageUnusable.style.display = speciesMode ? 'none' : 'block'
     if (clusterUnusable) clusterUnusable.style.display = speciesMode ? 'none' : 'block'
     if (flankLabel) flankLabel.style.display = speciesMode ? 'none' : 'block'
-    if (flankRow) flankRow.style.display = speciesMode ? 'none' : 'flex'
-    if (countRow) countRow.style.display = 'block'
-    if (prevWrap) prevWrap.style.display = 'block'
-    if (nextWrap) nextWrap.style.display = 'block'
+    if (flankRow) {
+        flankRow.style.display = speciesMode ? 'none' : 'flex'
+        flankRow.style.flexDirection = 'column'
+    }
+    if (isPoseExplore()) {
+        var detRow = document.getElementById('poseDetectionNavRow')
+        if (detRow) detRow.style.display = speciesMode ? 'none' : ''
+    } else {
+        if (prevWrap) prevWrap.style.display = 'block'
+        if (nextWrap) nextWrap.style.display = 'block'
+    }
+    poseUpdateDetectionCount()
     poseEnsureLegend()
     poseKeepView = true
     addedDetections['map1'] = false
@@ -557,13 +726,20 @@ function poseCommittedFlank(detection) {
 
 function poseStyleFlank(detection) {
     var chosen = detection ? poseCanonicalFlank(detection.flank) : 'None'
+    // Flank may be set even when the detection has no keypoints yet.
+    var allow = !!(detection && !detection.unusable)
     POSE_FLANKS.forEach(function(name) {
         var button = document.getElementById('poseFlank' + name)
         if (!button) return
-        var selected = chosen === name
+        button.disabled = !allow
+        if (allow) button.classList.remove('disabled')
+        else button.classList.add('disabled')
+        var selected = allow && chosen === name
         button.style.background = selected ? '#DF691A' : '#ffffff'
         button.style.color = selected ? '#ffffff' : '#333333'
         button.style.border = '1px solid ' + (selected ? '#DF691A' : '#cccccc')
+        button.style.opacity = allow ? '1' : '0.55'
+        button.style.pointerEvents = allow ? '' : 'none'
     })
 }
 
@@ -576,11 +752,11 @@ function poseShowUnusableModal(scope) {
     if (poseUnusableScope === 'image') {
         if (title) title.innerHTML = 'Mark Image Unusable'
         if (body) body.innerHTML = 'This will delete all pose keypoints for every sighting on this image, and their shoulder heights and back lengths. They cannot be restored after this is saved.'
-        if (confirm) confirm.innerHTML = 'Mark Image Unusable'
+        if (confirm) confirm.innerHTML = 'Mark Image Unusable (I)'
     } else if (poseUnusableScope === 'cluster') {
         if (title) title.innerHTML = 'Mark Cluster Unusable'
         if (body) body.innerHTML = 'This will delete all pose keypoints for every sighting in this cluster, and their shoulder heights and back lengths. They cannot be restored after this is saved.'
-        if (confirm) confirm.innerHTML = 'Mark Cluster Unusable'
+        if (confirm) confirm.innerHTML = 'Mark Cluster Unusable (C)'
     } else {
         if (title) title.innerHTML = 'Mark Unusable'
         if (body) body.innerHTML = 'This will delete all pose keypoints for this sighting, and its shoulder height and back length. They cannot be restored after this is saved.'
@@ -654,7 +830,8 @@ function poseChooseFlank(name) {
     detection.flank = name
     detection._flankPending = name !== committed
     detection.poseDirty = detection._flankPending || !!detection._pointsPending
-    detection._measuresPending = detection.poseDirty
+    // Flank-only edits are allowed with zero keypoints; only pending point edits require remeasure UI.
+    detection._measuresPending = !!detection._pointsPending || (detection._flankPending && !!(detection.keypoints && detection.keypoints.length))
     poseStyleFlank(detection)
     poseShowMeasurements(detection)
     if (detection.poseDirty) poseSave(false)
@@ -673,6 +850,10 @@ function poseShowMeasurements(detection) {
     poseNoteStoredUnusable(detection)
     poseStyleFlank(detection)
     poseUpdateDetectionCount()
+    poseUpdateEmptyNote(detection)
+    if (typeof isReviewing !== 'undefined' && isReviewing && typeof updateDetInfo === 'function') {
+        updateDetInfo(detection)
+    }
     var unusableButton = document.getElementById('poseUnusableButton')
     if (unusableButton) unusableButton.innerHTML = detection && detection.unusable ? 'Undo Unusable (U)' : 'Mark Unusable (U)'
     if (!detection) {
@@ -706,6 +887,14 @@ function poseColourForName(name) {
     return POSE_POINT_COLOURS[name] || {fill: '#1A69DF', edge: '#0B3F86'}
 }
 
+function poseHideDetectionTooltip(layer) {
+    if (!layer) return
+    if (layer.getTooltip && layer.getTooltip()) {
+        layer.closeTooltip()
+        layer.unbindTooltip()
+    }
+}
+
 function posePaintBoxes(mapID) {
     if (!isPoseReview() || !drawnItems[mapID]) return
     var image = poseCurrentImage()
@@ -719,16 +908,29 @@ function posePaintBoxes(mapID) {
         }
         if (!detection) continue
         var selected = String(detection.id) === String(poseSelectedId)
-        if (poseMode && !selected) {
-            layer.setStyle({color: colourBase, weight: 0, opacity: 0, fillOpacity: 0, dashArray: null})
+        // In pose mode boxes are visual-only: permanent explore tooltips and box hit-targets
+        // sit above keypoints and block hover / drag / right-click edit.
+        if (poseMode) {
+            poseHideDetectionTooltip(layer)
             if (layer._path) layer._path.style.pointerEvents = 'none'
+            if (!selected) {
+                layer.setStyle({color: colourBase, weight: 0, opacity: 0, fillOpacity: 0, dashArray: null})
+                continue
+            }
+            if (detection.unusable) {
+                layer.setStyle({color: '#DF0000', weight: 5, opacity: 1, fillOpacity: 0, dashArray: null})
+            } else {
+                layer.setStyle({
+                    color: colourSelected,
+                    weight: 5,
+                    opacity: 1,
+                    fillOpacity: 0,
+                    dashArray: null
+                })
+            }
             continue
         }
         if (layer._path) layer._path.style.pointerEvents = ''
-        if (detection.unusable) {
-            layer.setStyle({color: '#DF0000', weight: selected ? 5 : 4, opacity: 1, fillOpacity: 0, dashArray: null})
-            continue
-        }
         layer.setStyle({
             color: selected ? colourSelected : colourBase,
             weight: selected ? 5 : 3,
@@ -737,6 +939,22 @@ function posePaintBoxes(mapID) {
             dashArray: null
         })
     }
+    if (poseMode && poseMarkers && map[mapID] && map[mapID].hasLayer(poseMarkers)) {
+        poseMarkers.eachLayer(function(marker) {
+            if (marker.bringToFront) marker.bringToFront()
+        })
+    }
+}
+
+function posePaintBoxesSoon(mapID) {
+    posePaintBoxes(mapID)
+    // Leaflet can drop an immediate setStyle right after layers are created; re-apply next frame.
+    setTimeout(function() {
+        if (isPoseReview() && poseReviewMode === 'pose') posePaintBoxes(mapID)
+    }, 0)
+    setTimeout(function() {
+        if (isPoseReview() && poseReviewMode === 'pose') posePaintBoxes(mapID)
+    }, 50)
 }
 
 function poseSelectedDetection() {
@@ -760,6 +978,8 @@ function poseAfterDetections(mapID) {
 
     var imageChanged = String(image.id) !== String(poseLastImageId)
     poseLastImageId = image.id
+    // Explore has no species sub-mode; always keep pose selection like annotation.
+    if (isPoseExplore()) poseReviewMode = 'pose'
     poseEnsureSelection(imageChanged)
     poseShowMeasurements(poseSelectedDetection())
     poseUpdateDetectionCount()
@@ -784,6 +1004,7 @@ function poseAfterDetections(mapID) {
         }(dbDetIds[mapID][leafletID]))
     }
     poseRedrawPoseLayers(mapID)
+    posePaintBoxesSoon(mapID)
     if (!poseContextBound) {
         map[mapID].on('contextmenu', poseMapContext)
         poseContextBound = true
@@ -796,9 +1017,18 @@ function posePointLatLng(mapID, point) {
 
 function posePointUsable(point) {
     if (!point) return false
+    // User-placed/edited points are always trusted, even if an old model score remains.
+    if (point.source === 'user' || point.source === 'user_edited') return true
     if (point.score == null || point.score === '') return true
     var score = Number(point.score)
     return !isNaN(score) && score >= 0.3
+}
+
+function poseMarkUserPoint(point) {
+    if (!point) return
+    if (point.source !== 'user') point.source = 'user_edited'
+    // Drop stale model confidence so readiness / server measurement treat the point as usable.
+    point.score = null
 }
 
 function poseLegComplete(byName, names) {
@@ -884,22 +1114,33 @@ function poseAddMarker(mapID, detection, point) {
         color: colour.edge,
         weight: 1,
         fillColor: colour.fill,
-        fillOpacity: 1
+        fillOpacity: 1,
+        interactive: true,
+        bubblingMouseEvents: false
     })
-    marker.bindTooltip(point.name, {permanent: false, direction: 'top'})
+    marker.bindTooltip(point.name, {
+        permanent: false,
+        direction: 'top',
+        opacity: 0.95,
+        sticky: true,
+        interactive: false
+    })
     marker.poseDetection = detection
     marker.posePoint = point
     marker.on('mouseover', function() {
         marker.setStyle({radius: hoverRadius})
         marker.setRadius(hoverRadius)
+        if (marker.openTooltip) marker.openTooltip()
     })
     marker.on('mouseout', function() {
         marker.setStyle({radius: baseRadius})
         marker.setRadius(baseRadius)
+        if (marker.closeTooltip) marker.closeTooltip()
     })
     marker.on('mousedown', function(event) {
         if (event.originalEvent && event.originalEvent.button !== 0) return
         L.DomEvent.stopPropagation(event)
+        if (event.originalEvent) L.DomEvent.preventDefault(event.originalEvent)
         map[mapID].dragging.disable()
         var move = function(ev) { marker.setLatLng(ev.latlng) }
         var up = function(ev) {
@@ -912,8 +1153,9 @@ function poseAddMarker(mapID, detection, point) {
             if (Math.abs(nextX - point.x) > 1e-4 || Math.abs(nextY - point.y) > 1e-4) {
                 point.x = nextX
                 point.y = nextY
-                if (point.source !== 'user') point.source = 'user_edited'
+                poseMarkUserPoint(point)
                 poseMarkPointsPending(detection)
+                poseSave(false)
             }
             marker.setLatLng(posePointLatLng(mapID, point))
             poseUpdateLines(mapID)
@@ -989,7 +1231,7 @@ function poseChangePointLabel(detection, point, name) {
         return item === point || item.name !== name
     })
     point.name = name
-    if (point.source !== 'user') point.source = 'user_edited'
+    poseMarkUserPoint(point)
     poseMarkPointsPending(detection)
     poseRefresh()
     poseSave(false)
@@ -1008,7 +1250,7 @@ function posePlaceOrMovePoint(detection, name, x, y) {
     if (existing) {
         existing.x = x
         existing.y = y
-        if (existing.source !== 'user') existing.source = 'user_edited'
+        poseMarkUserPoint(existing)
     } else {
         detection.keypoints.push({name: name, x: x, y: y, score: null, source: 'user'})
     }
@@ -1042,12 +1284,19 @@ function poseMapContext(event) {
     map['map1'].contextmenu.showAt(event.containerPoint)
 }
 
-function poseHotkeyUnusable() {
+function poseHotkeyUnusable(scope) {
     if (!isPoseReview() || poseReviewMode !== 'pose') return
+    var target = scope || 'detection'
     var modal = $('#modalPoseUnusable')
     if (modal.length && modal.is(':visible')) {
-        poseConfirmUnusable()
-        modal.modal('hide')
+        if (!scope || poseUnusableScope === target) {
+            poseConfirmUnusable()
+            modal.modal('hide')
+        }
+        return
+    }
+    if (target === 'image' || target === 'cluster') {
+        poseShowUnusableModal(target)
         return
     }
     var detection = poseSelectedDetection()
@@ -1130,13 +1379,14 @@ function poseSaveOnLeave() {
 }
 
 function poseSubmitImage() {
-    if (!isPoseReview() || poseSubmitting) return
+    if (!isPoseReview() || poseSubmitting || isPoseExplore()) return
     if (typeof editingEnabled !== 'undefined' && editingEnabled) return
     poseSave(true)
 }
 
 function poseSave(submitImage) {
     if (!isPoseReview()) return
+    if (isPoseExplore()) submitImage = false
     if (submitImage && poseSubmitting) return
     var image = poseCurrentImage()
     var cluster = clusters['map1'][clusterIndex['map1']]
@@ -1153,10 +1403,17 @@ function poseSave(submitImage) {
             if (detection.unusable) {
                 edits[detection.id] = {unusable: true}
             } else if (detection.poseDirty) {
-                edits[detection.id] = {
-                    flank: detection.flank,
-                    keypoints: detection.keypoints || []
+                var edit = {}
+                if (detection._flankPending || detection._pointsPending) {
+                    if (detection._flankPending) edit.flank = detection.flank
+                    if (detection._pointsPending) edit.keypoints = detection.keypoints || []
+                } else {
+                    edit.flank = detection.flank
+                    edit.keypoints = detection.keypoints || []
                 }
+                // Flank-only is valid with zero keypoints; still send flank so Explore can set it first.
+                if (edit.flank == null && detection.flank) edit.flank = detection.flank
+                edits[detection.id] = edit
             }
             detection.poseDirty = false
         }
@@ -1176,8 +1433,8 @@ function poseSave(submitImage) {
     poseShowMeasurements(poseSelectedDetection())
     var formData = new FormData()
     formData.append('detections', JSON.stringify(edits))
-    formData.append('image_width', imagePixelWidth['map1'])
-    formData.append('image_height', imagePixelHeight['map1'])
+    formData.append('image_width', imagePixelWidth['map1'] || 0)
+    formData.append('image_height', imagePixelHeight['map1'] || 0)
     formData.append('cluster_id', JSON.stringify(cluster.id))
     formData.append('image_id', image.id)
     formData.append('submit_image', submitImage ? 'true' : 'false')
@@ -1189,26 +1446,35 @@ function poseSave(submitImage) {
             if (savedSubmit) poseSubmitting = false
             if (this.status == 278) {
                 window.location.replace(JSON.parse(this.responseText)['redirect'])
-            } else if (this.status == 200) {
-                var reply = JSON.parse(this.responseText)
-                var imageNow = poseCurrentImage()
-                if (reply.measurements && imageNow) {
-                    for (var n = 0; n < imageNow.detections.length; n++) {
-                        if (imageNow.detections[n]._saveSeq !== savedSeq) continue
-                        var fresh = reply.measurements[imageNow.detections[n].id]
-                        if (!fresh) fresh = reply.measurements[String(imageNow.detections[n].id)]
-                        imageNow.detections[n]._recalculating = false
-                        if (!fresh) continue
+                return
+            }
+            var imageNow = poseCurrentImage()
+            var clearRecalc = function(ok, measurements) {
+                if (!imageNow || !imageNow.detections) return
+                for (var n = 0; n < imageNow.detections.length; n++) {
+                    if (imageNow.detections[n]._saveSeq !== savedSeq) continue
+                    imageNow.detections[n]._recalculating = false
+                    if (!ok) continue
+                    var fresh = null
+                    if (measurements) {
+                        fresh = measurements[imageNow.detections[n].id]
+                        if (!fresh) fresh = measurements[String(imageNow.detections[n].id)]
+                    }
+                    if (fresh) {
                         imageNow.detections[n].shoulder_height = fresh.shoulder_height
                         imageNow.detections[n].back_length = fresh.back_length
-                        imageNow.detections[n]._committedFlank = poseCanonicalFlank(imageNow.detections[n].flank)
-                        imageNow.detections[n]._flankPending = false
-                        imageNow.detections[n]._pointsPending = false
-                        imageNow.detections[n]._measuresPending = false
                     }
-                    poseShowMeasurements(poseSelectedDetection())
-                    poseUpdateLines('map1')
+                    imageNow.detections[n]._committedFlank = poseCanonicalFlank(imageNow.detections[n].flank)
+                    imageNow.detections[n]._flankPending = false
+                    imageNow.detections[n]._pointsPending = false
+                    imageNow.detections[n]._measuresPending = false
                 }
+                poseShowMeasurements(poseSelectedDetection())
+                poseUpdateLines('map1')
+            }
+            if (this.status == 200) {
+                var reply = JSON.parse(this.responseText)
+                clearRecalc(reply && reply.status !== 'error', reply && reply.measurements)
                 if (savedSubmit) {
                     if (reply.progress) updateProgBar(reply.progress)
                     if (savedLast) nextCluster('map1')
@@ -1217,6 +1483,8 @@ function poseSave(submitImage) {
                         update('map1')
                     }
                 }
+            } else {
+                clearRecalc(false, null)
             }
         }
     }(seq, submitImage, lastImage)

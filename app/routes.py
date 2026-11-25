@@ -19479,16 +19479,8 @@ def savePoseReview():
 
     submit_image marks the eligible detections on that image checked.
     The cluster is marked examined only when this is its last image.
+    Explore (admin write) may autosave edits but never marks pose_checked.
     '''
-    if (not current_user.admin) and (not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id), current_user.username)):
-        return {'redirect': url_for('done')}, 278
-
-    task = current_user.turkcode[0].task
-    if task is None or '-9' not in task.tagging_level:
-        return json.dumps({'status': 'error'})
-    if not checkAnnotationPermission(current_user.parent_id, task.id):
-        return {'redirect': url_for('done')}, 278
-
     from depthworker.height import measurements_from_stored_points
 
     try:
@@ -19498,7 +19490,28 @@ def savePoseReview():
         cluster_id = int(json.loads(request.form['cluster_id']))
     except (TypeError, ValueError, KeyError):
         return json.dumps({'status': 'error'})
-    submit_image = request.form.get('submit_image') == 'true'
+
+    cluster = db.session.query(Cluster).get(cluster_id)
+    if cluster is None or cluster.task is None:
+        return json.dumps({'status': 'error'})
+    task = cluster.task
+
+    explore_save = False
+    if current_user.admin:
+        if not checkSurveyPermission(current_user.id, task.survey_id, 'write'):
+            return json.dumps({'status': 'error'})
+        # Explore sets tagging_level to '-1'; only a live -9 job may submit/check.
+        explore_save = '-9' not in (task.tagging_level or '')
+    else:
+        if not GLOBALS.redisClient.sismember('active_jobs_'+str(current_user.turkcode[0].task_id), current_user.username):
+            return {'redirect': url_for('done')}, 278
+        annot_task = current_user.turkcode[0].task
+        if annot_task is None or '-9' not in annot_task.tagging_level or annot_task.id != task.id:
+            return json.dumps({'status': 'error'})
+        if not checkAnnotationPermission(current_user.parent_id, task.id):
+            return {'redirect': url_for('done')}, 278
+
+    submit_image = (not explore_save) and request.form.get('submit_image') == 'true'
     last_image = request.form.get('last_image') == 'true'
     image_id = None
     if submit_image:
@@ -19582,8 +19595,7 @@ def savePoseReview():
         }
 
     if submit_image and image_id is not None:
-        cluster = db.session.query(Cluster).get(cluster_id)
-        if cluster and cluster.task_id == task.id:
+        if cluster.task_id == task.id and '-9' in (task.tagging_level or '') and ',' in task.tagging_level:
             label = db.session.query(Label).get(int(re.split(',', task.tagging_level)[1]))
             touched = or_(
                 Detection.pose_keypoints.any(),
@@ -19609,7 +19621,8 @@ def savePoseReview():
 
     db.session.commit()
     num = db.session.query(Cluster).filter(Cluster.user_id==current_user.id).count()
-    return json.dumps({'status': 'success', 'progress': [num, task.size + task.test_size], 'measurements': updated})
+    progress = [num, (task.size or 0) + (task.test_size or 0)]
+    return json.dumps({'status': 'success', 'progress': progress, 'measurements': updated})
 
 
 @app.route('/editSightingsGeneral/<task_id>', methods=['POST'])

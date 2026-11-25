@@ -1288,7 +1288,10 @@ function updateCanvas(mapID = 'map1') {
 function updateButtons(mapID = 'map1'){
     /** Enables/disables the next/previous image/cluster & undo buttons. */
     if (prevClusterBtn != null) {
-        if (typeof isPoseReview === 'function' && isPoseReview()) {
+        if (typeof isPoseExplore === 'function' && isPoseExplore()) {
+            if (clusterIndex[mapID]==0) prevClusterBtn.classList.add("disabled")
+            else prevClusterBtn.classList.remove("disabled")
+        } else if (typeof isPoseReview === 'function' && isPoseReview()) {
             if (clusterIndex[mapID]==0 && imageIndex[mapID]==0) prevClusterBtn.classList.add("disabled")
             else prevClusterBtn.classList.remove("disabled")
         } else if (isBounding||isClassCheck) {
@@ -1327,7 +1330,7 @@ function updateButtons(mapID = 'map1'){
     if (nextImageBtn != null) {
         if (clusters[mapID][clusterIndex[mapID]] != null) {
             if ((clusters[mapID][clusterIndex[mapID]].id != '-99')&&(clusters[mapID][clusterIndex[mapID]].id != '-101')&&(clusters[mapID][clusterIndex[mapID]].id != '-782')) {
-                var poseCanAdvance = typeof isPoseReview === 'function' && isPoseReview()
+                var poseCanAdvance = typeof isPoseReview === 'function' && isPoseReview() && !(typeof isPoseExplore === 'function' && isPoseExplore())
                 if (!poseCanAdvance && imageIndex[mapID]==clusters[mapID][clusterIndex[mapID]].images.length-1){
                     nextImageBtn.classList.add("disabled")
                     if (isStaticCheck && staticCheckPage[clusters[mapID][clusterIndex[mapID]].id].next_page!=null){
@@ -1687,23 +1690,27 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
                 }
             }
 
-            if (isReviewing && document.getElementById('detInfoDiv').hidden == false) {
-                let detID = null;
-                for (let leafletID in drawnItems[mapID]._layers) {
-                    if (drawnItems[mapID]._layers[leafletID].options.color == colourSelected) {
-                        detID = dbDetIds[mapID][leafletID];
-                        break;
+            if (isReviewing && document.getElementById('detInfoDiv')) {
+                if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose' && typeof poseSelectedDetection === 'function') {
+                    updateDetInfo(poseSelectedDetection(), mapID)
+                } else if (document.getElementById('detInfoDiv').hidden == false) {
+                    let detID = null;
+                    for (let leafletID in drawnItems[mapID]._layers) {
+                        if (drawnItems[mapID]._layers[leafletID].options.color == colourSelected) {
+                            detID = dbDetIds[mapID][leafletID];
+                            break;
+                        }
                     }
-                }
-                if (detID != null) {
-                    let det = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.find(det => det.id == detID);
-                    if (det != undefined) {
-                        updateDetInfo(det, mapID)
-                    } else {
+                    if (detID != null) {
+                        let det = clusters[mapID][clusterIndex[mapID]].images[imageIndex[mapID]].detections.find(det => det.id == detID);
+                        if (det != undefined) {
+                            updateDetInfo(det, mapID)
+                        } else {
+                            updateDetInfo(null, mapID)
+                        }
+                    } else{
                         updateDetInfo(null, mapID)
                     }
-                } else{
-                    updateDetInfo(null, mapID)
                 }
             }
         } 
@@ -1776,7 +1783,8 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
 
 function nextImage(mapID = 'map1'){
     /** Switches to the next image in the cluster if its available. */
-    if (mapID === 'map1' && typeof isPoseReview === 'function' && isPoseReview() && typeof poseSubmitImage === 'function' && finishedDisplaying[mapID] == true && !editingEnabled && clusters[mapID] && clusters[mapID][clusterIndex[mapID]] && ['-99','-101','-782'].indexOf(String(clusters[mapID][clusterIndex[mapID]].id)) === -1 && ((modalActive == false && modalActive2 == false) || (typeof modalAlert !== 'undefined' && modalAlert.is(':visible')))) {
+    var poseExplore = typeof isPoseExplore === 'function' && isPoseExplore()
+    if (mapID === 'map1' && !poseExplore && typeof isPoseReview === 'function' && isPoseReview() && typeof poseSubmitImage === 'function' && finishedDisplaying[mapID] == true && !editingEnabled && clusters[mapID] && clusters[mapID][clusterIndex[mapID]] && ['-99','-101','-782'].indexOf(String(clusters[mapID][clusterIndex[mapID]].id)) === -1 && ((modalActive == false && modalActive2 == false) || (typeof modalAlert !== 'undefined' && modalAlert.is(':visible')))) {
         poseSubmitImage()
         return
     }
@@ -4120,15 +4128,24 @@ document.onkeyup = function(event){
             }
             if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') {
                 var poseKey = event.key.toLowerCase()
-                if (poseKey === 'control' && typeof poseSubmitImage === 'function') {
+                var poseExploreKeys = typeof isPoseExplore === 'function' && isPoseExplore()
+                if (poseKey === 'control' && !poseExploreKeys && typeof poseSubmitImage === 'function') {
                     poseSubmitImage()
                     return
                 }
                 if (poseKey === 'u' && typeof poseHotkeyUnusable === 'function') {
-                    poseHotkeyUnusable()
+                    poseHotkeyUnusable('detection')
                     return
                 }
-                if (poseKey === '0' && typeof poseSkipCluster === 'function') {
+                if (poseKey === 'i' && typeof poseHotkeyUnusable === 'function') {
+                    poseHotkeyUnusable('image')
+                    return
+                }
+                if (poseKey === 'c' && typeof poseHotkeyUnusable === 'function') {
+                    poseHotkeyUnusable('cluster')
+                    return
+                }
+                if (poseKey === '0' && !poseExploreKeys && typeof poseSkipCluster === 'function') {
                     poseSkipCluster()
                     return
                 }
@@ -4144,11 +4161,11 @@ document.onkeyup = function(event){
                     poseChooseFlank('Right')
                     return
                 }
-                if ((event.key === '[' || poseKey === '[') && typeof posePrevDetection === 'function') {
+                if (poseKey === 'z' && typeof posePrevDetection === 'function') {
                     posePrevDetection()
                     return
                 }
-                if ((event.key === ']' || poseKey === ']') && typeof poseNextDetection === 'function') {
+                if (poseKey === 'x' && typeof poseNextDetection === 'function') {
                     poseNextDetection()
                     return
                 }
@@ -4241,7 +4258,7 @@ document.onkeyup = function(event){
                     break;
 
                 case 'control': 
-                    if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') {
+                    if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose' && !(typeof isPoseExplore === 'function' && isPoseExplore())) {
                         poseSubmitImage()
                     } else if (!isReviewing){
                         if (!ctrlHeld){
@@ -4261,14 +4278,16 @@ document.onkeyup = function(event){
                     break;
                 case '~':
                 case '`':
-                    if (typeof isPoseReview === 'function' && isPoseReview() && typeof poseBack === 'function') poseBack()
+                    if (typeof isPoseExplore === 'function' && isPoseExplore()) prevCluster()
+                    else if (typeof isPoseReview === 'function' && isPoseReview() && typeof poseBack === 'function') poseBack()
                     else prevCluster()
                     break;
     
                 case 'arrowright': nextImage()
                     break;
                 case 'arrowleft':
-                    if (typeof isPoseReview === 'function' && isPoseReview() && typeof poseBack === 'function') poseBack()
+                    if (typeof isPoseExplore === 'function' && isPoseExplore()) prevImage()
+                    else if (typeof isPoseReview === 'function' && isPoseReview() && typeof poseBack === 'function') poseBack()
                     else prevImage()
                     break;
                 case 'arrowup': 
@@ -4441,6 +4460,7 @@ document.onclick = function (event){
     activity = true
     if (isBounding||isReviewing||(isTagging&&!isTutorial&&!isIDing)) {
         for (let mapID in map) {
+            if (!map[mapID] || !map[mapID].contextmenu) continue
             if (map[mapID].contextmenu.isVisible()) {
                 map[mapID].contextmenu.hide()
                 plusInProgress = false
@@ -4453,6 +4473,7 @@ document.onclick = function (event){
             if (mapID == 'known'){
                 continue
             }
+            if (!map[mapID] || !map[mapID].contextmenu) continue
             if (map[mapID].contextmenu.isVisible()) {
                 map[mapID].contextmenu.hide()
             }
@@ -4462,7 +4483,8 @@ document.onclick = function (event){
             if (mapID == 'known'){
                 continue
             }
-            if (map[mapID].contextmenu.isVisible()) {
+            if (!map[mapID]) continue
+            if (map[mapID].contextmenu && map[mapID].contextmenu.isVisible()) {
                 map[mapID].contextmenu.hide()
             }
 
@@ -4575,6 +4597,14 @@ function editBounding() {
 
 function clearBoundingSelect(mapID = 'map1') {
     /** Clears(Un-highlight) the selected bounding box */
+    if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') {
+        if (typeof poseEnsureSelection === 'function') poseEnsureSelection(false)
+        if (typeof posePaintBoxes === 'function') posePaintBoxes(mapID)
+        if (isReviewing && typeof poseSelectedDetection === 'function') {
+            updateDetInfo(poseSelectedDetection(), mapID)
+        }
+        return
+    }
     for (let leafletID in drawnItems[mapID]._layers) {
         drawnItems[mapID]._layers[leafletID].setStyle({color: colourBase}); //un-highlight all selections
     }

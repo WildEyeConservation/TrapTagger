@@ -14,8 +14,10 @@
 
 document.addEventListener('click', function(event){
     /** Un-highlights the selected bounding box */
+    // Pose keypoints always keep one detection selected/highlighted.
+    if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') return
     if(drawControl!=null&&!drawControl._toolbars.edit._activeMode && !drawControl._toolbars.draw._activeMode){
-        if (event.target.classList.contains('leaflet-interactive')==false&&event.target.classList.contains('bounding-btn')==false&&event.target.classList.contains('select-all-bounding-btn')==false){
+        if (event.target.classList && event.target.classList.contains('leaflet-interactive')==false&&event.target.classList.contains('bounding-btn')==false&&event.target.classList.contains('select-all-bounding-btn')==false){
             if (!event.target.classList.contains('label-btn')) {
                 clearBoundingSelect()  
             }
@@ -75,14 +77,16 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
     map[mapID].on("draw:editstop", function(e) {
         if (toolTipsOpen) {
             for (let layer in drawnItems[mapID]._layers) {
+                var drawn_layer = drawnItems[mapID]._layers[layer]
+                if (!drawn_layer || !drawn_layer._tooltip || !drawn_layer._tooltip.options) continue
                 // update the tooltip position
-                var center = L.latLng([(drawnItems[mapID]._layers[layer]._bounds._northEast.lat+drawnItems[mapID]._layers[layer]._bounds._southWest.lat)/2,(drawnItems[mapID]._layers[layer]._bounds._northEast.lng+drawnItems[mapID]._layers[layer]._bounds._southWest.lng)/2])
-                var bottom = L.latLng([drawnItems[mapID]._layers[layer]._bounds._southWest.lat,(drawnItems[mapID]._layers[layer]._bounds._northEast.lng+drawnItems[mapID]._layers[layer]._bounds._southWest.lng)/2])
+                var center = L.latLng([(drawn_layer._bounds._northEast.lat+drawn_layer._bounds._southWest.lat)/2,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
+                var bottom = L.latLng([drawn_layer._bounds._southWest.lat,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
                 var centerPoint = map[mapID].latLngToContainerPoint(center)
                 var bottomPoint = map[mapID].latLngToContainerPoint(bottom)
                 var offset = [0,centerPoint.y-bottomPoint.y]
-                drawnItems[mapID]._layers[layer]._tooltip.options.offset = offset
-                drawnItems[mapID]._layers[layer].openTooltip()
+                drawn_layer._tooltip.options.offset = offset
+                drawn_layer.openTooltip()
             }
         }
         editingEnabled = false
@@ -120,6 +124,7 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
 
         // add eventlistener to highligh bounding box when selected
         layer.on('click contextmenu', function() {
+            if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') return
             var colour = colourBase
             if (!event.ctrlKey){
                 for (let leafletID in drawnItems[mapID]._layers) {
@@ -150,9 +155,12 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
 
     map[mapID].on('zoom', function(e){
         /** update position of bounding box labels on zoom */
+        // Pose mode unbinds detection tooltips so keypoints stay interactive; skip safely.
+        if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') return
         if (toolTipsOpen) {
             for (let layer in drawnItems[mapID]._layers) {
                 var drawn_layer = drawnItems[mapID]._layers[layer]
+                if (!drawn_layer || !drawn_layer._tooltip || !drawn_layer._tooltip.options) continue
                 var center = L.latLng([(drawn_layer._bounds._northEast.lat+drawn_layer._bounds._southWest.lat)/2,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
                 var bottom = L.latLng([drawn_layer._bounds._southWest.lat,(drawn_layer._bounds._northEast.lng+drawn_layer._bounds._southWest.lng)/2])
                 var centerPoint = map[mapID].latLngToContainerPoint(center)
@@ -163,8 +171,15 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
         }
     });
 
+    map[mapID].on('zoomend', function() {
+        if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose' && typeof poseRedrawPoseLayers === 'function') {
+            poseRedrawPoseLayers(mapID)
+        }
+    });
+
     map[mapID].on('contextmenu', function (e) {
         /** remove duplicate items on more than one right click */
+        if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') return
         // if (isReviewing){
         //     if (document.getElementById('detIndividual').innerHTML != 'None') {
         //         map[mapID].contextmenu.hide()
@@ -187,6 +202,9 @@ function sightingAnalysisMapPrep(mapID = 'map1') {
     });
 
     map[mapID].on('contextmenu.select', function (e) {
+        if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') {
+            return
+        }
         // if (!isBounding) {
         //     let has_indiv = false
         //     let det_id = dbDetIds[mapID][targetRect]

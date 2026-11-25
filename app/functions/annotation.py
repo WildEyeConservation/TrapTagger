@@ -1309,8 +1309,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
         # If its a max request, the last cluster is probably missing info
         if max_request and (len(clusterInfo.keys())>1): del clusterInfo[clusters[-1][0]]
 
-        if '-9' in taggingLevel:
-            _attach_pose_fields(clusterInfo)
+        # Always attach pose fields so Explore and annotation both receive keypoints.
+        _attach_pose_fields(clusterInfo)
 
         return clusterInfo, max_request
 

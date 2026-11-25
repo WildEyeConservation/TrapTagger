@@ -85,10 +85,14 @@ def average_scale_factor(calibration_entries):
 def _usable(point):
     if not point:
         return False
+    score = point.get('score')
+    # Missing score means a person placed/edited the point.
+    if score is None or score == '':
+        return True
     try:
-        score = float(point.get('score'))
+        score = float(score)
     except (TypeError, ValueError):
-        return False
+        return True
     return score >= KEYPOINT_MIN_SCORE
 
 

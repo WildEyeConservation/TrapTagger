@@ -152,6 +152,15 @@ function loadNewCluster(mapID = 'map1') {
     }
 }
 
+function explorePoseKeySource() {
+    /** Pose explore reuses species (-1) hotkeys for the optional species sub-mode. */
+    if (globalKeys == null) return null
+    if (typeof taggingLevel === 'string' && taggingLevel.indexOf('-9') === 0) {
+        return globalKeys['-1'] || [[], []]
+    }
+    return globalKeys[taggingLevel]
+}
+
 function getKeys() {
     /** Initialises the keys for the current tagging level. */
     if (!isBounding) {
@@ -184,10 +193,10 @@ function getKeys() {
                                 }
                             }
     
-                            res = globalKeys[taggingLevel]
+                            res = explorePoseKeySource()
         
                             // Remove undesirable names from the explore page
-                            if (res.length!=0) {    
+                            if (res && res.length!=0) {    
                                 initKeys(res);
                             }
                         }
@@ -195,14 +204,28 @@ function getKeys() {
                 }
             xhttp.send();
         } else {
-            initKeys(globalKeys[taggingLevel])
+            var res = explorePoseKeySource()
+            if (res) initKeys(res)
         }
     }
 }
 
 function populateLevels() {
     /** Populates the tagging-level selector. */
-    switchTaggingLevel(annotationLevel.value)
+    var previous = taggingLevel
+    var next = annotationLevel.value
+    var leavingPose = typeof previous === 'string' && previous.indexOf('-9') === 0 && String(next).indexOf('-9') !== 0
+    if (leavingPose && typeof poseSaveOnLeave === 'function') poseSaveOnLeave()
+    switchTaggingLevel(next)
+    if (leavingPose && typeof poseClearExploreUi === 'function') poseClearExploreUi()
+    if (String(next).indexOf('-9') === 0 && map['map1']) {
+        poseReviewMode = 'pose'
+        poseSelectedId = null
+        poseLastImageId = null
+        addedDetections['map1'] = false
+        addDetections('map1')
+        if (typeof posePaintBoxesSoon === 'function') posePaintBoxesSoon('map1')
+    }
 }
 
 annotationLevel.addEventListener('change', function() {
@@ -759,6 +782,13 @@ function formatDetectionMeasurement(value) {
 function updateDetInfo(det=null, mapID = 'map1') {
     /** Updates the detection information. */
     let multiple_selected = checkMultipleSightingsSelected(mapID)
+    // Pose always has exactly one logical selection; don't hide info based on box colours.
+    if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') {
+        multiple_selected = false
+        if (det == null && typeof poseSelectedDetection === 'function') {
+            det = poseSelectedDetection()
+        }
+    }
     if (det != null && !multiple_selected) {
         document.getElementById('detInfoDiv').hidden = false
         let tempLab = ''
