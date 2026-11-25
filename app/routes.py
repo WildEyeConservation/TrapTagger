@@ -19559,8 +19559,15 @@ def savePoseReview():
                 moved = abs((row.x or 0) - x) > 1e-6 or abs((row.y or 0) - y) > 1e-6
                 row.x = x
                 row.y = y
-                if moved and row.source not in ('user', 'user_edited'):
+                client_source = point.get('source')
+                if client_source in ('user', 'user_edited'):
+                    row.source = client_source
+                elif moved and row.source not in ('user', 'user_edited'):
                     row.source = 'user_edited'
+                # Drop stale model confidence once a person owns the point so
+                # measurements match the explore/annotation readiness rules.
+                if row.source in ('user', 'user_edited'):
+                    row.score = None
             for name, row in existing.items():
                 if name not in kept:
                     db.session.delete(row)
@@ -19572,6 +19579,7 @@ def savePoseReview():
                 'x': point.x,
                 'y': point.y,
                 'score': point.score,
+                'source': point.source,
             } for point in live_rows if point not in db.session.deleted]
             scale_factor = detection.image.camera.cameragroup.scale_factor if detection.image.camera.cameragroup else None
             image_ok = image_width > 0 and image_height > 0

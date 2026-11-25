@@ -85,6 +85,10 @@ def average_scale_factor(calibration_entries):
 def _usable(point):
     if not point:
         return False
+    # A person-placed/edited point is always trusted, even if an old model
+    # score was left on the row.
+    if point.get('source') in ('user', 'user_edited'):
+        return True
     score = point.get('score')
     # Missing score means a person placed/edited the point.
     if score is None or score == '':
@@ -236,7 +240,13 @@ def measurements_from_stored_points(points, flank, distance_m, scale_factor, wid
         score = point.get('score')
         if score is None:
             score = 1.0
-        keypoints[name] = {'name': name, 'x': x, 'y': y, 'score': score}
+        keypoints[name] = {
+            'name': name,
+            'x': x,
+            'y': y,
+            'score': score,
+            'source': point.get('source'),
+        }
 
     shoulder_height = None
     back_length = None

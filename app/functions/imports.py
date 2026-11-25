@@ -5428,6 +5428,7 @@ def recalc_body_measurements_for_cameragroup(cameragroup_id, scale_factor, size_
             'x': point.x,
             'y': point.y,
             'score': point.score,
+            'source': point.source,
         } for point in detection.pose_keypoints]
         shoulder, back = measurements_from_stored_points(
             points, detection.flank, detection.distance, scale_value, width, height
