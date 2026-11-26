@@ -2333,6 +2333,8 @@ def delete_duplicate_videos(videos,skip):
     db.session.query(individualDetections).filter(individualDetections.c.detection_id.in_(detIDs)).delete(synchronize_session=False)
     db.session.query(individualPrimaryDetections).filter(individualPrimaryDetections.c.detection_id.in_(detIDs)).delete(synchronize_session=False)
     db.session.query(Feature).filter(Feature.detection_id.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(DetectionEmbedding).filter(DetectionEmbedding.detection_id.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(PoseKeypoint).filter(PoseKeypoint.detection_id.in_(detIDs)).delete(synchronize_session=False)
     db.session.query(Detection).filter(Detection.id.in_(detIDs)).delete(synchronize_session=False)
     
     db.session.query(requiredimagestable).filter(requiredimagestable.c.image_id.in_(imageIDs)).delete(synchronize_session=False)
@@ -2405,6 +2407,8 @@ def delete_duplicate_images(imgs):
     db.session.query(individualDetections).filter(individualDetections.c.detection_id.in_(detIDs)).delete(synchronize_session=False)
     db.session.query(individualPrimaryDetections).filter(individualPrimaryDetections.c.detection_id.in_(detIDs)).delete(synchronize_session=False)
     db.session.query(Feature).filter(Feature.detection_id.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(DetectionEmbedding).filter(DetectionEmbedding.detection_id.in_(detIDs)).delete(synchronize_session=False)
+    db.session.query(PoseKeypoint).filter(PoseKeypoint.detection_id.in_(detIDs)).delete(synchronize_session=False)
     db.session.query(Detection).filter(Detection.id.in_(detIDs)).delete(synchronize_session=False)
     
     db.session.query(requiredimagestable).filter(requiredimagestable.c.image_id.in_(canditateImageIDs)).delete(synchronize_session=False)

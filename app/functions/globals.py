@@ -2467,6 +2467,12 @@ def save_crops(image_id,source,min_area,destBucket,external,update_image_info,la
             try:
                 # delete if corrupt or inaccessible
                 for detection in image.detections:
+                    for point in list(detection.pose_keypoints):
+                        db.session.delete(point)
+                    for embedding in list(detection.embeddings):
+                        db.session.delete(embedding)
+                    for feature in list(detection.features):
+                        db.session.delete(feature)
                     db.session.delete(detection)
                 db.session.delete(image)
                 db.session.commit()
