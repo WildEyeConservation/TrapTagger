@@ -13,4 +13,5 @@ safetensors==0.4.5
 yacs==0.1.8
 opencv-python==4.9.0.80
 tqdm==4.66.4
+kombu==5.5.4
 # SAM is installed editable from git in the Dockerfile (same commit as gpuworker)
