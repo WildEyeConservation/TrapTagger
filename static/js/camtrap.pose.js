@@ -220,7 +220,7 @@ function buildPoseReviewPanel(res) {
         skip.id = 'poseSkipCluster'
         skip.className = 'btn btn-danger btn-block btn-sm'
         skip.style.marginTop = '3px'
-        skip.innerHTML = 'Skip (0)'
+        skip.innerHTML = 'Skip (S)'
         skip.addEventListener('click', poseSkipCluster)
         divBtns.appendChild(skip)
 
@@ -237,6 +237,9 @@ function buildPoseReviewPanel(res) {
     poseEnsureLegend()
     poseUpdateDrawTool()
     poseLayoutNav()
+    // Panel is built async with getKeys; first cluster may already be on screen.
+    // Re-paint measurements so the initial detection is not left on the default '-'.
+    poseShowMeasurements(poseSelectedDetection())
 }
 
 function poseEnsureLegend() {

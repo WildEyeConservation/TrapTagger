@@ -7421,8 +7421,6 @@ def getSuggestion(individual_id):
                                             .scalar()
                         debug_detsim_source = detsim_source_for_algorithm(debug_algo)
                         for detection1 in detections1:
-                            reply['detsim'][str(detection1.image.id)] = {}
-                            reply['adjsim'][str(detection1.image.id)] = {}
                             for detection2 in detections2:
 
                                 detSimilarity = None
@@ -7437,50 +7435,52 @@ def getSuggestion(individual_id):
                                                                         DetSimilarity.detection_2==detection1.id)\
                                                                 )).filter(DetSimilarity.source==debug_detsim_source).first()
 
-                                if max_similarity:
-                                    reply['detsim'][str(detection1.image.id)][str(detection2.image.id)] = detSimilarity.score
-                                    reply['adjsim'][str(detection1.image.id)][str(detection2.image.id)] = adjusted_score
-                                else:
-                                    if (detSimilarity != None) and (detSimilarity.score != None):
-                                        iou_factor = 1
-                                        # if detection1.image.camera==detection2.image.camera:
-                                        #     intersection_left = max(detection1.left,detection2.left)
-                                        #     intersection_right = min(detection1.right,detection2.right)
-                                        #     intersection_top = max(detection1.top,detection2.top)
-                                        #     intersection_bottom = min(detection1.bottom,detection2.bottom)
-            
-                                        #     if (intersection_right>intersection_left) and (intersection_bottom>intersection_top):
-                                        #         intersection_area = (intersection_right-intersection_left)*(intersection_bottom-intersection_top)
-                                        #         detection1_area = (detection1.right-detection1.left)*(detection1.bottom-detection1.top)
-                                        #         detection2_area = (detection2.right-detection2.left)*(detection2.bottom-detection2.top)
-                                        #         union_area = detection1_area + detection2_area - intersection_area
-                                        #         iou = intersection_area/union_area
-                                        #         iou_factor = iouWeight*((1-iou)**2)
+                                # Only write cells when a DetSim exists — do not reset per-image
+                                # dicts up front (sibling dets without scores were wiping valid ones).
+                                if (detSimilarity != None) and (detSimilarity.score != None):
+                                    iou_factor = 1
+                                    # if detection1.image.camera==detection2.image.camera:
+                                    #     intersection_left = max(detection1.left,detection2.left)
+                                    #     intersection_right = min(detection1.right,detection2.right)
+                                    #     intersection_top = max(detection1.top,detection2.top)
+                                    #     intersection_bottom = min(detection1.bottom,detection2.bottom)
+        
+                                    #     if (intersection_right>intersection_left) and (intersection_bottom>intersection_top):
+                                    #         intersection_area = (intersection_right-intersection_left)*(intersection_bottom-intersection_top)
+                                    #         detection1_area = (detection1.right-detection1.left)*(detection1.bottom-detection1.top)
+                                    #         detection2_area = (detection2.right-detection2.left)*(detection2.bottom-detection2.top)
+                                    #         union_area = detection1_area + detection2_area - intersection_area
+                                    #         iou = intersection_area/union_area
+                                    #         iou_factor = iouWeight*((1-iou)**2)
 
-                                        lat1 = detection1.image.camera.trapgroup.latitude
-                                        lon1 = detection1.image.camera.trapgroup.longitude
-                                        lat2 = detection2.image.camera.trapgroup.latitude
-                                        lon2 = detection2.image.camera.trapgroup.longitude
-                                        # Match IndSim: (0,0) coords mean unknown GPS — do not apply same-site distance boost
-                                        if lat1 == lon1 == 0:
-                                            distanceScore = 1
-                                        else:
-                                            distance = coordinateDistance(lat1, lon1, lat2, lon2)
-                                            distanceScore = 1 + distanceWeight - (distanceWeight*distanceNormFactor*distance)
-                                            if distanceScore < 1: distanceScore=1
+                                    lat1 = detection1.image.camera.trapgroup.latitude
+                                    lon1 = detection1.image.camera.trapgroup.longitude
+                                    lat2 = detection2.image.camera.trapgroup.latitude
+                                    lon2 = detection2.image.camera.trapgroup.longitude
+                                    # Match IndSim: (0,0) coords mean unknown GPS — do not apply same-site distance boost
+                                    if lat1 == lon1 == 0:
+                                        distanceScore = 1
+                                    else:
+                                        distance = coordinateDistance(lat1, lon1, lat2, lon2)
+                                        distanceScore = 1 + distanceWeight - (distanceWeight*distanceNormFactor*distance)
+                                        if distanceScore < 1: distanceScore=1
 
-                                        if detection1.image.corrected_timestamp and detection2.image.corrected_timestamp:
-                                            time = abs((detection1.image.corrected_timestamp-detection2.image.corrected_timestamp).total_seconds())
-                                        else:
-                                            time = 0
+                                    if detection1.image.corrected_timestamp and detection2.image.corrected_timestamp:
+                                        time = abs((detection1.image.corrected_timestamp-detection2.image.corrected_timestamp).total_seconds())
+                                    else:
+                                        time = 0
 
-                                        timeScore = 1 + timeWeight - (timeWeight*timeNormFactor*time)
-                                        if timeScore < 1: timeScore=1
+                                    timeScore = 1 + timeWeight - (timeWeight*timeNormFactor*time)
+                                    if timeScore < 1: timeScore=1
 
-                                        adjusted_score = iou_factor * distanceScore * timeScore * (1 + (tagWeight*tagScore)) * detSimilarity.score
+                                    adjusted_score = iou_factor * distanceScore * timeScore * (1 + (tagWeight*tagScore)) * detSimilarity.score
 
-                                        reply['detsim'][str(detection1.image.id)][str(detection2.image.id)] = detSimilarity.score
-                                        reply['adjsim'][str(detection1.image.id)][str(detection2.image.id)] = adjusted_score
+                                    img1 = str(detection1.image.id)
+                                    img2 = str(detection2.image.id)
+                                    prev = reply['detsim'].get(img1, {}).get(img2)
+                                    if prev is None or detSimilarity.score > prev:
+                                        reply['detsim'].setdefault(img1, {})[img2] = detSimilarity.score
+                                        reply['adjsim'].setdefault(img1, {})[img2] = adjusted_score
 
     return json.dumps(reply)
 

@@ -4145,7 +4145,7 @@ document.onkeyup = function(event){
                     poseHotkeyUnusable('cluster')
                     return
                 }
-                if (poseKey === '0' && !poseExploreKeys && typeof poseSkipCluster === 'function') {
+                if (poseKey === 's' && !poseExploreKeys && typeof poseSkipCluster === 'function') {
                     poseSkipCluster()
                     return
                 }
