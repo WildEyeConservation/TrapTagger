@@ -12,6 +12,7 @@ var poseLastImageId = null
 var poseMenuOpen = false
 var poseUnusableScope = 'detection'
 var poseMarkerContext = null
+var poseSelectLastOnImage = false
 var POSE_SKELETON_COLOUR = '#A9C8F5'
 var POSE_POINT_COLOURS = {
     left_eye: {fill: '#1A69DF', edge: '#0B3F86'},
@@ -216,21 +217,21 @@ function buildPoseReviewPanel(res) {
     }
 
     if (!isPoseExplore()) {
+        var skipImage = document.createElement('button')
+        skipImage.id = 'poseSkipImage'
+        skipImage.className = 'btn btn-danger btn-block btn-sm'
+        skipImage.style.marginTop = '3px'
+        skipImage.innerHTML = 'Skip Image (K)'
+        skipImage.addEventListener('click', poseSkipImage)
+        divBtns.appendChild(skipImage)
+
         var skip = document.createElement('button')
         skip.id = 'poseSkipCluster'
         skip.className = 'btn btn-danger btn-block btn-sm'
         skip.style.marginTop = '3px'
-        skip.innerHTML = 'Skip (S)'
+        skip.innerHTML = 'Skip Cluster (S)'
         skip.addEventListener('click', poseSkipCluster)
         divBtns.appendChild(skip)
-
-        var submit = document.createElement('button')
-        submit.id = 'poseSubmitCluster'
-        submit.className = 'btn btn-success btn-block btn-sm'
-        submit.style.marginTop = '3px'
-        submit.innerHTML = 'Submit (Ctrl)'
-        submit.addEventListener('click', function() { poseSubmitImage() })
-        divBtns.appendChild(submit)
     }
 
     switchToLabel = false
@@ -332,82 +333,38 @@ function poseLayoutNav() {
         if (button && button.parentElement) button.parentElement.style.display = 'none'
     })
 
+    // Annotation uses one Back / one Next; hide the explore-style detection pair.
+    ;['posePrevDetectionWrap', 'poseNextDetectionWrap'].forEach(function(id) {
+        var wrap = document.getElementById(id)
+        if (wrap) wrap.style.display = 'none'
+    })
+
     var back = document.getElementById('prevCluster')
     var next = document.getElementById('nextImage')
+    // Match sighting (box) correction: centred col-lg-3 buttons, not full-width stretch.
+    if (back && back.parentElement && back.parentElement.parentElement) {
+        back.parentElement.parentElement.className = 'row justify-content-center'
+        back.parentElement.parentElement.style.cssText = ''
+    }
     if (back) {
-        back.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Image'
-        back.className = 'btn btn-primary btn-block'
+        back.innerHTML = 'Previous Detection (Z)'
+        back.className = 'btn btn-secondary btn-block'
         back.onclick = function() { poseBack() }
-        poseStyleNavButton(back)
+        back.removeAttribute('style')
         if (back.parentElement) {
-            back.parentElement.className = ''
-            back.parentElement.style.cssText = 'flex:1 1 0; min-width:0; padding:0 4px;'
+            back.parentElement.className = 'col-lg-3'
+            back.parentElement.style.cssText = ''
         }
     }
     if (next) {
-        next.innerHTML = 'Next Image <span style="font-size:100%">&#x276f;</span>'
+        next.innerHTML = 'Next Detection (X)'
         next.className = 'btn btn-primary btn-block'
-        next.onclick = function() { nextImage() }
-        poseStyleNavButton(next)
+        next.onclick = function() { poseNext() }
+        next.removeAttribute('style')
         if (next.parentElement) {
-            next.parentElement.className = ''
-            next.parentElement.style.cssText = 'flex:1 1 0; min-width:0; padding:0 4px;'
+            next.parentElement.className = 'col-lg-3'
+            next.parentElement.style.cssText = ''
         }
-    }
-
-    var prevDet = document.getElementById('posePrevDetection')
-    var nextDet = document.getElementById('poseNextDetection')
-    if (!prevDet && back && back.parentElement && back.parentElement.parentElement) {
-        var row = back.parentElement.parentElement
-        row.style.cssText = 'display:flex; flex-wrap:nowrap; align-items:stretch; justify-content:center; width:100%;'
-        var prevWrap = document.createElement('div')
-        prevWrap.id = 'posePrevDetectionWrap'
-        prevWrap.style.cssText = 'flex:1 1 0; min-width:0; padding:0 4px;'
-        prevDet = document.createElement('button')
-        prevDet.id = 'posePrevDetection'
-        prevDet.type = 'button'
-        prevDet.className = 'btn btn-secondary btn-block'
-        prevDet.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Detection (Z)'
-        poseStyleNavButton(prevDet)
-        prevWrap.appendChild(prevDet)
-
-        var nextWrap = document.createElement('div')
-        nextWrap.id = 'poseNextDetectionWrap'
-        nextWrap.style.cssText = 'flex:1 1 0; min-width:0; padding:0 4px;'
-        nextDet = document.createElement('button')
-        nextDet.id = 'poseNextDetection'
-        nextDet.type = 'button'
-        nextDet.className = 'btn btn-secondary btn-block'
-        nextDet.innerHTML = 'Next Detection (X) <span style="font-size:100%">&#x276f;</span>'
-        poseStyleNavButton(nextDet)
-        nextWrap.appendChild(nextDet)
-
-        row.insertBefore(nextWrap, next ? next.parentElement : null)
-        row.insertBefore(prevWrap, nextWrap)
-    } else {
-        var prevWrapExisting = document.getElementById('posePrevDetectionWrap')
-        var nextWrapExisting = document.getElementById('poseNextDetectionWrap')
-        if (prevWrapExisting) {
-            prevWrapExisting.className = ''
-            prevWrapExisting.style.cssText = 'flex:1 1 0; min-width:0; padding:0 4px;'
-        }
-        if (nextWrapExisting) {
-            nextWrapExisting.className = ''
-            nextWrapExisting.style.cssText = 'flex:1 1 0; min-width:0; padding:0 4px;'
-        }
-        if (back && back.parentElement && back.parentElement.parentElement) {
-            back.parentElement.parentElement.style.cssText = 'display:flex; flex-wrap:nowrap; align-items:stretch; justify-content:center; width:100%;'
-        }
-    }
-    if (prevDet) {
-        prevDet.innerHTML = '<span style="font-size:100%">&#x276e;</span> Previous Detection (Z)'
-        prevDet.onclick = function() { posePrevDetection() }
-        poseStyleNavButton(prevDet)
-    }
-    if (nextDet) {
-        nextDet.innerHTML = 'Next Detection (X) <span style="font-size:100%">&#x276f;</span>'
-        nextDet.onclick = function() { poseNextDetection() }
-        poseStyleNavButton(nextDet)
     }
 
     var oldCountRow = document.getElementById('poseDetectionCountRow')
@@ -561,6 +518,7 @@ function poseRedrawPoseLayers(mapID) {
 }
 
 function posePrevDetection() {
+    // Explore-only: stay within the current image's detections.
     if (!isPoseReview() || poseSubmitting) return
     if (poseOrderedDetections().length <= 1) return
     var index = poseSelectedIndex()
@@ -573,6 +531,7 @@ function posePrevDetection() {
 }
 
 function poseNextDetection() {
+    // Explore-only: stay within the current image's detections.
     if (!isPoseReview() || poseSubmitting) return
     if (poseOrderedDetections().length <= 1) return
     var index = poseSelectedIndex()
@@ -584,14 +543,63 @@ function poseNextDetection() {
     poseSelectByIndex(index + 1)
 }
 
+function poseNext() {
+    /** Annotation Next: next detection, then check+next image, then next cluster. */
+    if (!isPoseReview() || isPoseExplore() || poseSubmitting) return
+    if (typeof editingEnabled !== 'undefined' && editingEnabled) return
+    if (typeof finishedDisplaying !== 'undefined' && finishedDisplaying['map1'] != true) return
+    if (typeof modalActive !== 'undefined' && modalActive && !(typeof modalAlert !== 'undefined' && modalAlert.is(':visible'))) return
+    if (typeof modalActive2 !== 'undefined' && modalActive2 && !(typeof modalAlert !== 'undefined' && modalAlert.is(':visible'))) return
+    var cluster = clusters['map1'] && clusters['map1'][clusterIndex['map1']]
+    if (!cluster || ['-99', '-101', '-782'].indexOf(String(cluster.id)) !== -1) return
+
+    var dets = poseOrderedDetections()
+    var index = poseSelectedIndex()
+    if (dets.length && index >= 0 && index < dets.length - 1) {
+        poseSelectByIndex(index + 1)
+        return
+    }
+    // Last detection (or no detections): mark image checked and advance.
+    poseSave(true)
+}
+
 function poseBack() {
+    /** Annotation Back: previous detection, then previous image (last det), then previous cluster. */
     if (!isPoseReview() || poseSubmitting) return
     if (typeof editingEnabled !== 'undefined' && editingEnabled) return
     if (typeof finishedDisplaying !== 'undefined' && finishedDisplaying['map1'] != true) return
+    if (isPoseExplore()) {
+        // Explore Back stays image-level; detection stepping uses Z/X.
+        var exploreCluster = clusters['map1'] && clusters['map1'][clusterIndex['map1']]
+        if (!exploreCluster) return
+        poseSave(false)
+        if (imageIndex['map1'] > 0) {
+            imageIndex['map1'] -= 1
+            update('map1')
+            return
+        }
+        if (clusterIndex['map1'] <= 0) return
+        var explorePrev = clusters['map1'][clusterIndex['map1'] - 1]
+        if (!explorePrev || ['-99', '-101', '-782'].indexOf(String(explorePrev.id)) !== -1) return
+        clusterIndex['map1'] -= 1
+        imageIndex['map1'] = explorePrev.images && explorePrev.images.length ? explorePrev.images.length - 1 : 0
+        update('map1')
+        return
+    }
+
     var cluster = clusters['map1'] && clusters['map1'][clusterIndex['map1']]
     if (!cluster) return
     poseSave(false)
+
+    var dets = poseOrderedDetections()
+    var index = poseSelectedIndex()
+    if (dets.length && index > 0) {
+        poseSelectByIndex(index - 1)
+        return
+    }
+
     if (imageIndex['map1'] > 0) {
+        poseSelectLastOnImage = true
         imageIndex['map1'] -= 1
         update('map1')
         return
@@ -599,6 +607,7 @@ function poseBack() {
     if (clusterIndex['map1'] <= 0) return
     var previous = clusters['map1'][clusterIndex['map1'] - 1]
     if (!previous || ['-99', '-101', '-782'].indexOf(String(previous.id)) !== -1) return
+    poseSelectLastOnImage = true
     clusterIndex['map1'] -= 1
     imageIndex['map1'] = previous.images && previous.images.length ? previous.images.length - 1 : 0
     update('map1')
@@ -608,9 +617,9 @@ function poseRefresh() {
     var speciesMode = poseReviewMode === 'species'
     var speciesDiv = document.getElementById('poseSpeciesButtons')
     if (speciesDiv) speciesDiv.style.display = speciesMode ? 'block' : 'none'
-    var submit = document.getElementById('poseSubmitCluster')
+    var skipImage = document.getElementById('poseSkipImage')
     var skip = document.getElementById('poseSkipCluster')
-    if (submit) submit.style.display = (speciesMode || isPoseExplore()) ? 'none' : 'block'
+    if (skipImage) skipImage.style.display = (speciesMode || isPoseExplore()) ? 'none' : 'block'
     if (skip) skip.style.display = (speciesMode || isPoseExplore()) ? 'none' : 'block'
     var measurements = document.getElementById('poseMeasurements')
     var unusable = document.getElementById('poseUnusableButton')
@@ -618,8 +627,6 @@ function poseRefresh() {
     var clusterUnusable = document.getElementById('poseClusterUnusableButton')
     var flankLabel = document.getElementById('poseFlankLabel')
     var flankRow = document.getElementById('poseFlankRow')
-    var prevWrap = document.getElementById('posePrevDetectionWrap')
-    var nextWrap = document.getElementById('poseNextDetectionWrap')
     if (measurements) measurements.style.display = speciesMode ? 'none' : 'block'
     if (unusable) unusable.style.display = speciesMode ? 'none' : 'block'
     if (imageUnusable) imageUnusable.style.display = speciesMode ? 'none' : 'block'
@@ -633,8 +640,10 @@ function poseRefresh() {
         var detRow = document.getElementById('poseDetectionNavRow')
         if (detRow) detRow.style.display = speciesMode ? 'none' : ''
     } else {
-        if (prevWrap) prevWrap.style.display = 'block'
-        if (nextWrap) nextWrap.style.display = 'block'
+        ;['posePrevDetectionWrap', 'poseNextDetectionWrap'].forEach(function(id) {
+            var wrap = document.getElementById(id)
+            if (wrap) wrap.style.display = 'none'
+        })
     }
     poseUpdateDetectionCount()
     poseEnsureLegend()
@@ -769,8 +778,9 @@ function poseShowUnusableModal(scope) {
 }
 
 function poseConfirmUnusable() {
+    // Image/cluster unusable: mark checked, then advance (explore stays put).
     if (poseUnusableScope === 'image') {
-        poseMarkDetectionsUnusable(poseOrderedDetections())
+        poseMarkDetectionsUnusable(poseOrderedDetections(), true, isPoseExplore() ? null : 'nextImage')
         return
     }
     if (poseUnusableScope === 'cluster') {
@@ -785,31 +795,41 @@ function poseConfirmUnusable() {
                 }
             }
         }
-        poseMarkDetectionsUnusable(dets)
+        poseMarkDetectionsUnusable(dets, true, isPoseExplore() ? null : 'nextCluster')
         return
     }
     var detection = poseSelectedDetection()
     if (!detection || detection.unusable) return
-    poseMarkDetectionsUnusable([detection])
+    poseMarkDetectionsUnusable([detection], false, null)
 }
 
-function poseMarkDetectionsUnusable(detections) {
+function poseMarkDetectionsUnusable(detections, markChecked, after) {
     if (!detections || !detections.length) return
     for (var i = 0; i < detections.length; i++) {
         var detection = detections[i]
-        if (!detection || detection.unusable) continue
-        detection.unusable = true
-        detection.keypoints = []
-        detection.shoulder_height = 0
-        detection.back_length = 0
-        detection._measuresPending = false
-        detection._pointsPending = false
-        detection._flankPending = false
-        detection.poseDirty = true
+        if (!detection) continue
+        if (!detection.unusable) {
+            detection.unusable = true
+            detection.keypoints = []
+            detection.shoulder_height = 0
+            detection.back_length = 0
+            detection._measuresPending = false
+            detection._pointsPending = false
+            detection._flankPending = false
+            detection.poseDirty = true
+        }
+        if (markChecked) {
+            detection.pose_checked = true
+            detection._checkOnSave = true
+            detection.poseDirty = true
+        }
     }
     poseShowMeasurements(poseSelectedDetection())
     poseRefresh()
-    poseSave(false)
+    // Image unusable: submit+advance like finishing the image. Cluster: save then examine+next.
+    if (after === 'nextImage') poseSave(true)
+    else if (after === 'nextCluster') poseSave(false, {after: 'nextCluster'})
+    else poseSave(false)
 }
 
 function poseUndoUnusable(detection) {
@@ -984,6 +1004,11 @@ function poseAfterDetections(mapID) {
     // Explore has no species sub-mode; always keep pose selection like annotation.
     if (isPoseExplore()) poseReviewMode = 'pose'
     poseEnsureSelection(imageChanged)
+    if (poseSelectLastOnImage) {
+        poseSelectLastOnImage = false
+        var ordered = poseOrderedDetections()
+        if (ordered.length) poseSelectByIndex(ordered.length - 1)
+    }
     poseShowMeasurements(poseSelectedDetection())
     poseUpdateDetectionCount()
 
@@ -1361,9 +1386,26 @@ function poseSetSpecies(label) {
     submitSightingChanges({ids: [Number(detection.id)], label: label}, 'label')
 }
 
-function poseSkipCluster() {
-    var cluster = clusters['map1'][clusterIndex['map1']]
-    if (!cluster) return
+function poseSkipImage() {
+    /** Leave current image's dets unchecked and advance to the next image (or skip cluster on the last image). */
+    if (!isPoseReview() || isPoseExplore() || poseSubmitting) return
+    if (typeof editingEnabled !== 'undefined' && editingEnabled) return
+    if (typeof finishedDisplaying !== 'undefined' && finishedDisplaying['map1'] != true) return
+    var cluster = clusters['map1'] && clusters['map1'][clusterIndex['map1']]
+    if (!cluster || ['-99', '-101', '-782'].indexOf(String(cluster.id)) !== -1) return
+    poseSave(false)
+    if (imageIndex['map1'] < cluster.images.length - 1) {
+        imageIndex['map1'] += 1
+        update('map1')
+        return
+    }
+    poseSkipCluster()
+}
+
+function poseExamineAndNextCluster() {
+    /** Mark the current cluster examined and move to the next one (no pose_checked changes). */
+    var cluster = clusters['map1'] && clusters['map1'][clusterIndex['map1']]
+    if (!cluster || ['-99', '-101', '-782'].indexOf(String(cluster.id)) !== -1) return
     var xhttp = new XMLHttpRequest()
     xhttp.onreadystatechange = function() {
         if (this.readyState == 4 && this.status == 200) {
@@ -1376,20 +1418,27 @@ function poseSkipCluster() {
     xhttp.send()
 }
 
+function poseSkipCluster() {
+    /** Leave remaining dets unchecked, mark the cluster examined, and move on. */
+    if (!isPoseReview() || isPoseExplore() || poseSubmitting) return
+    var cluster = clusters['map1'][clusterIndex['map1']]
+    if (!cluster || ['-99', '-101', '-782'].indexOf(String(cluster.id)) !== -1) return
+    poseSave(false)
+    poseExamineAndNextCluster()
+}
+
 function poseSaveOnLeave() {
     if (!isPoseReview()) return
     poseSave(false)
 }
 
-function poseSubmitImage() {
-    if (!isPoseReview() || poseSubmitting || isPoseExplore()) return
-    if (typeof editingEnabled !== 'undefined' && editingEnabled) return
-    poseSave(true)
-}
-
-function poseSave(submitImage) {
+function poseSave(submitImage, options) {
     if (!isPoseReview()) return
-    if (isPoseExplore()) submitImage = false
+    options = options || {}
+    if (isPoseExplore()) {
+        submitImage = false
+        options = {}
+    }
     if (submitImage && poseSubmitting) return
     var image = poseCurrentImage()
     var cluster = clusters['map1'][clusterIndex['map1']]
@@ -1404,7 +1453,12 @@ function poseSave(submitImage) {
             var detection = img.detections[i]
             if (!detection.poseDirty && !submitImage) continue
             if (detection.unusable) {
-                edits[detection.id] = {unusable: true}
+                var unusableEdit = {unusable: true}
+                if (detection._checkOnSave) {
+                    unusableEdit.pose_checked = true
+                    detection._checkOnSave = false
+                }
+                edits[detection.id] = unusableEdit
             } else if (detection.poseDirty) {
                 var edit = {}
                 if (detection._flankPending || detection._pointsPending) {
@@ -1421,9 +1475,12 @@ function poseSave(submitImage) {
             detection.poseDirty = false
         }
     }
-    if (Object.keys(edits).length === 0 && !submitImage) return
+    if (Object.keys(edits).length === 0 && !submitImage) {
+        if (options.after === 'nextCluster') poseExamineAndNextCluster()
+        return
+    }
     var lastImage = imageIndex['map1'] >= cluster.images.length - 1
-    if (submitImage) poseSubmitting = true
+    if (submitImage || options.after === 'nextCluster') poseSubmitting = true
     var seq = ++poseSaveSeq
     for (var id in edits) {
         for (var m = 0; m < image.detections.length; m++) {
@@ -1443,10 +1500,10 @@ function poseSave(submitImage) {
     formData.append('submit_image', submitImage ? 'true' : 'false')
     formData.append('last_image', lastImage ? 'true' : 'false')
     var xhttp = new XMLHttpRequest()
-    xhttp.onreadystatechange = function(savedSeq, savedSubmit, savedLast) {
+    xhttp.onreadystatechange = function(savedSeq, savedSubmit, savedLast, afterAction) {
         return function() {
             if (this.readyState != 4) return
-            if (savedSubmit) poseSubmitting = false
+            if (savedSubmit || afterAction === 'nextCluster') poseSubmitting = false
             if (this.status == 278) {
                 window.location.replace(JSON.parse(this.responseText)['redirect'])
                 return
@@ -1478,6 +1535,10 @@ function poseSave(submitImage) {
             if (this.status == 200) {
                 var reply = JSON.parse(this.responseText)
                 clearRecalc(reply && reply.status !== 'error', reply && reply.measurements)
+                if (afterAction === 'nextCluster') {
+                    poseExamineAndNextCluster()
+                    return
+                }
                 if (savedSubmit) {
                     if (reply.progress) updateProgBar(reply.progress)
                     if (savedLast) nextCluster('map1')
@@ -1490,7 +1551,7 @@ function poseSave(submitImage) {
                 clearRecalc(false, null)
             }
         }
-    }(seq, submitImage, lastImage)
+    }(seq, submitImage, lastImage, options.after || null)
     xhttp.open('POST', '/savePoseReview')
     xhttp.send(formData)
 }

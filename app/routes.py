@@ -19477,9 +19477,10 @@ def getFolderLastModified():
 def savePoseReview():
     '''Save pose points, flank, and unusable for the current image.
 
-    submit_image marks the eligible detections on that image checked.
-    The cluster is marked examined only when this is its last image.
-    Explore (admin write) may autosave edits but never marks pose_checked.
+    submit_image marks the eligible detections on that image checked. Annotation
+    sends this when Next leaves the last detection on an image. The cluster is
+    marked examined only when this is its last image. Explore (admin write) may
+    autosave edits but never marks pose_checked.
     '''
     from depthworker.height import measurements_from_stored_points
 
@@ -19530,6 +19531,9 @@ def savePoseReview():
                 db.session.delete(point)
             detection.shoulder_height = 0
             detection.back_length = 0
+            # Image/cluster unusable from annotation also marks the work checked.
+            if edit.get('pose_checked') and not explore_save:
+                detection.pose_checked = True
             updated[int(det_id)] = {'shoulder_height': 0, 'back_length': 0}
             continue
 

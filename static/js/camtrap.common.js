@@ -1784,8 +1784,8 @@ function updateDebugInfo(mapID = 'map1',updateLabels = true) {
 function nextImage(mapID = 'map1'){
     /** Switches to the next image in the cluster if its available. */
     var poseExplore = typeof isPoseExplore === 'function' && isPoseExplore()
-    if (mapID === 'map1' && !poseExplore && typeof isPoseReview === 'function' && isPoseReview() && typeof poseSubmitImage === 'function' && finishedDisplaying[mapID] == true && !editingEnabled && clusters[mapID] && clusters[mapID][clusterIndex[mapID]] && ['-99','-101','-782'].indexOf(String(clusters[mapID][clusterIndex[mapID]].id)) === -1 && ((modalActive == false && modalActive2 == false) || (typeof modalAlert !== 'undefined' && modalAlert.is(':visible')))) {
-        poseSubmitImage()
+    if (mapID === 'map1' && !poseExplore && typeof isPoseReview === 'function' && isPoseReview() && typeof poseNext === 'function' && finishedDisplaying[mapID] == true && !editingEnabled && clusters[mapID] && clusters[mapID][clusterIndex[mapID]] && ['-99','-101','-782'].indexOf(String(clusters[mapID][clusterIndex[mapID]].id)) === -1 && ((modalActive == false && modalActive2 == false) || (typeof modalAlert !== 'undefined' && modalAlert.is(':visible')))) {
+        poseNext()
         return
     }
     if (typeof poseSaveOnLeave === 'function') poseSaveOnLeave()
@@ -4129,10 +4129,6 @@ document.onkeyup = function(event){
             if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose') {
                 var poseKey = event.key.toLowerCase()
                 var poseExploreKeys = typeof isPoseExplore === 'function' && isPoseExplore()
-                if (poseKey === 'control' && !poseExploreKeys && typeof poseSubmitImage === 'function') {
-                    poseSubmitImage()
-                    return
-                }
                 if (poseKey === 'u' && typeof poseHotkeyUnusable === 'function') {
                     poseHotkeyUnusable('detection')
                     return
@@ -4149,6 +4145,10 @@ document.onkeyup = function(event){
                     poseSkipCluster()
                     return
                 }
+                if (poseKey === 'k' && !poseExploreKeys && typeof poseSkipImage === 'function') {
+                    poseSkipImage()
+                    return
+                }
                 if (poseKey === 'l' && typeof poseChooseFlank === 'function') {
                     poseChooseFlank('Left')
                     return
@@ -4161,12 +4161,15 @@ document.onkeyup = function(event){
                     poseChooseFlank('Right')
                     return
                 }
-                if (poseKey === 'z' && typeof posePrevDetection === 'function') {
-                    posePrevDetection()
+                // Z/X: explore steps within the image; annotation uses unified detection→image→cluster Next/Back.
+                if (poseKey === 'z') {
+                    if (poseExploreKeys && typeof posePrevDetection === 'function') posePrevDetection()
+                    else if (!poseExploreKeys && typeof poseBack === 'function') poseBack()
                     return
                 }
-                if (poseKey === 'x' && typeof poseNextDetection === 'function') {
-                    poseNextDetection()
+                if (poseKey === 'x') {
+                    if (poseExploreKeys && typeof poseNextDetection === 'function') poseNextDetection()
+                    else if (!poseExploreKeys && typeof poseNext === 'function') poseNext()
                     return
                 }
                 if (poseKey.length === 1 && ((poseKey >= '1' && poseKey <= '9') || (poseKey >= 'a' && poseKey <= 'z') || poseKey === ' ' || poseKey === '-')) return
@@ -4259,8 +4262,9 @@ document.onkeyup = function(event){
 
                 case 'control': 
                     if (typeof isPoseReview === 'function' && isPoseReview() && poseReviewMode === 'pose' && !(typeof isPoseExplore === 'function' && isPoseExplore())) {
-                        poseSubmitImage()
-                    } else if (!isReviewing){
+                        break
+                    }
+                    if (!isReviewing){
                         if (!ctrlHeld){
                             activateMultiple()
                         }
