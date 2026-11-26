@@ -2,7 +2,7 @@
 
 Coordinates passed in are image pixels. Stored keypoints use fractions of the
 image width and height. Calibration distance and height are metres.
-shoulder_height and back_length are centimetres.
+shoulder_height, back_length, and tail_height are centimetres.
 '''
 
 import math
@@ -36,6 +36,8 @@ KEYPOINT_MIN_SCORE = 0.3
 
 LEFT_LEG = ('left_shoulder', 'left_elbow', 'left_front_paw')
 RIGHT_LEG = ('right_shoulder', 'right_elbow', 'right_front_paw')
+LEFT_HIND = ('left_hip', 'left_knee', 'left_back_paw')
+RIGHT_HIND = ('right_hip', 'right_knee', 'right_back_paw')
 
 _LEG_PAIRS = (
     ('left_shoulder', 'right_shoulder'),
@@ -113,16 +115,15 @@ def _mean_score(keypoints, names):
     return sum(scores) / float(len(scores))
 
 
-def choose_leg_side(flank, keypoints):
-    '''Return 'left', 'right', or None.
+def choose_leg_side(flank, keypoints, left_names=LEFT_LEG, right_names=RIGHT_LEG):
+    '''Return 'left', 'right', or None for a front- or hind-leg triplet.
 
-    A stored flank of L or R is used when that side has shoulder, elbow, and
-    front paw. Otherwise the other side is used if it is complete. When the
-    flank is missing or ambiguous, the complete side with the higher average
-    score is used.
+    A stored flank of L or R is used when that side has all three points.
+    Otherwise the other side is used if it is complete. When the flank is
+    missing or ambiguous, the complete side with the higher average score is used.
     '''
-    left_ok = _leg_complete(keypoints, LEFT_LEG)
-    right_ok = _leg_complete(keypoints, RIGHT_LEG)
+    left_ok = _leg_complete(keypoints, left_names)
+    right_ok = _leg_complete(keypoints, right_names)
     flank = flank if flank in ('L', 'R', 'A') else None
 
     if flank == 'L':
@@ -140,9 +141,9 @@ def choose_leg_side(flank, keypoints):
 
     candidates = []
     if left_ok:
-        candidates.append(('left', _mean_score(keypoints, LEFT_LEG)))
+        candidates.append(('left', _mean_score(keypoints, left_names)))
     if right_ok:
-        candidates.append(('right', _mean_score(keypoints, RIGHT_LEG)))
+        candidates.append(('right', _mean_score(keypoints, right_names)))
     if not candidates:
         return None
     candidates.sort(key=lambda item: item[1], reverse=True)
@@ -205,17 +206,25 @@ def shoulder_top_pixel(mask, shoulder):
 
     mask is a boolean array of shape (height, width), y growing downward.
     '''
-    if mask is None or not _usable(shoulder):
+    return mask_top_pixel(mask, shoulder)
+
+
+def mask_top_pixel(mask, anchor):
+    '''Top mask pixel in the anchor point's column, or None.
+
+    mask is a boolean array of shape (height, width), y growing downward.
+    '''
+    if mask is None or not _usable(anchor):
         return None
     height, width = mask.shape[:2]
-    x = int(round(float(shoulder['x'])))
+    x = int(round(float(anchor['x'])))
     if x < 0 or x >= width or height <= 0:
         return None
     column = mask[:, x]
     hits = [index for index, value in enumerate(column) if value]
     if not hits:
         return None
-    return {'x': float(x), 'y': float(min(hits)), 'score': None, 'name': SHOULDER_TOP_NAME}
+    return {'x': float(x), 'y': float(min(hits)), 'score': None}
 
 
 def measurements_from_stored_points(points, flank, distance_m, scale_factor, width, height):
@@ -225,7 +234,7 @@ def measurements_from_stored_points(points, flank, distance_m, scale_factor, wid
     those fractions belong to. A missing score is treated as usable, because
     a person placed the point. A missing required point returns None for that
     measurement. Invalid distance, scale factor, or image size returns None
-    for both, and the caller decides whether that clears the stored values.
+    for all three, and the caller decides whether that clears the stored values.
     '''
     keypoints = {}
     for point in points or []:
@@ -250,19 +259,20 @@ def measurements_from_stored_points(points, flank, distance_m, scale_factor, wid
 
     shoulder_height = None
     back_length = None
+    tail_height = None
     try:
         distance_m = float(distance_m)
         scale_factor = float(scale_factor)
         width = float(width)
         height = float(height)
     except (TypeError, ValueError):
-        return None, None
+        return None, None, None
     width = abs(width)
     height = abs(height)
     if distance_m <= 0 or scale_factor <= 0 or width <= 0 or height <= 0:
-        return None, None
+        return None, None, None
 
-    side = choose_leg_side(flank, keypoints)
+    side = choose_leg_side(flank, keypoints, LEFT_LEG, RIGHT_LEG)
     if side is not None:
         names = LEFT_LEG if side == 'left' else RIGHT_LEG
         shoulder = keypoints.get(names[0])
@@ -279,18 +289,44 @@ def measurements_from_stored_points(points, flank, distance_m, scale_factor, wid
             if value > 0:
                 shoulder_height = value
 
-    neck = keypoints.get('neck')
+    top = keypoints.get(SHOULDER_TOP_NAME)
     tail = keypoints.get('tail')
-    if _usable(neck) and _usable(tail):
-        pixel_length = _pixel_distance(neck, tail)
+    if _usable(top) and _usable(tail):
+        pixel_length = _pixel_distance(top, tail)
         value = 100.0 * pixel_length * distance_m / scale_factor
         if value > 0:
             back_length = value
 
-    return shoulder_height, back_length
+    # Tail height uses the AP-10K tail point as the chain top (no extrapolated point).
+    hind_side = choose_leg_side(flank, keypoints, LEFT_HIND, RIGHT_HIND)
+    if hind_side is not None:
+        names = LEFT_HIND if hind_side == 'left' else RIGHT_HIND
+        hip = keypoints.get(names[0])
+        knee = keypoints.get(names[1])
+        paw = keypoints.get(names[2])
+        if _usable(tail) and _usable(hip) and _usable(knee) and _usable(paw):
+            pixel_length = (
+                _pixel_distance(tail, hip)
+                + _pixel_distance(hip, knee)
+                + _pixel_distance(knee, paw)
+            )
+            value = 100.0 * pixel_length * distance_m / scale_factor
+            if value > 0:
+                tail_height = value
+
+    return shoulder_height, back_length, tail_height
 
 
-def measure_animal(keypoints, mask, distance_m, scale_factor, flank, compute_shoulder=True, compute_back=True):
+def measure_animal(
+    keypoints,
+    mask,
+    distance_m,
+    scale_factor,
+    flank,
+    compute_shoulder=True,
+    compute_back=True,
+    compute_tail=True,
+):
     '''Return centimetre measurements and the keypoint rows to store.
 
     Either measurement may be missing. pixel length * distance / scale_factor
@@ -308,37 +344,75 @@ def measure_animal(keypoints, mask, distance_m, scale_factor, flank, compute_sho
             'score': point.get('score'),
         })
 
+    scale_ok = bool(scale_factor and distance_m and distance_m > 0 and scale_factor > 0)
     shoulder_height = None
     shoulder_names = []
-    side = choose_leg_side(flank, keypoints) if compute_shoulder else None
-    if side is not None and scale_factor and distance_m and distance_m > 0 and scale_factor > 0:
+    back_length = None
+    back_names = []
+    # Back length runs shoulder_top → tail, so derive the mask top whenever either
+    # shoulder height or back length is requested.
+    side = (
+        choose_leg_side(flank, keypoints, LEFT_LEG, RIGHT_LEG)
+        if (compute_shoulder or compute_back) else None
+    )
+    top = None
+    shoulder = None
+    elbow = None
+    paw = None
+    names = None
+    if side is not None and scale_ok:
         names = LEFT_LEG if side == 'left' else RIGHT_LEG
         shoulder = keypoints.get(names[0])
         elbow = keypoints.get(names[1])
         paw = keypoints.get(names[2])
-        top = shoulder_top_pixel(mask, shoulder)
-        if top is not None and _usable(elbow) and _usable(paw):
-            pixel_length = (
-                _pixel_distance(top, shoulder)
-                + _pixel_distance(shoulder, elbow)
-                + _pixel_distance(elbow, paw)
-            )
-            shoulder_height = 100.0 * pixel_length * float(distance_m) / float(scale_factor)
-            shoulder_names = [SHOULDER_TOP_NAME, names[0], names[1], names[2]]
-            stored.append(top)
+        top = mask_top_pixel(mask, shoulder)
+        if top is not None:
+            top = dict(top)
+            top['name'] = SHOULDER_TOP_NAME
 
-    back_length = None
-    back_names = []
-    neck = keypoints.get('neck')
-    tail = keypoints.get('tail')
+    top_stored = False
     if (
-        compute_back
-        and _usable(neck) and _usable(tail)
-        and scale_factor and distance_m and distance_m > 0 and scale_factor > 0
+        compute_shoulder
+        and top is not None
+        and names is not None
+        and _usable(elbow) and _usable(paw)
+        and scale_ok
     ):
-        pixel_length = _pixel_distance(neck, tail)
+        pixel_length = (
+            _pixel_distance(top, shoulder)
+            + _pixel_distance(shoulder, elbow)
+            + _pixel_distance(elbow, paw)
+        )
+        shoulder_height = 100.0 * pixel_length * float(distance_m) / float(scale_factor)
+        shoulder_names = [SHOULDER_TOP_NAME, names[0], names[1], names[2]]
+        stored.append(top)
+        top_stored = True
+
+    tail = keypoints.get('tail')
+    if compute_back and top is not None and _usable(tail) and scale_ok:
+        pixel_length = _pixel_distance(top, tail)
         back_length = 100.0 * pixel_length * float(distance_m) / float(scale_factor)
-        back_names = ['neck', 'tail']
+        back_names = [SHOULDER_TOP_NAME, 'tail']
+        if not top_stored:
+            stored.append(top)
+            top_stored = True
+
+    tail_height = None
+    tail_names = []
+    hind_side = choose_leg_side(flank, keypoints, LEFT_HIND, RIGHT_HIND) if compute_tail else None
+    if hind_side is not None and scale_ok:
+        names = LEFT_HIND if hind_side == 'left' else RIGHT_HIND
+        hip = keypoints.get(names[0])
+        knee = keypoints.get(names[1])
+        paw = keypoints.get(names[2])
+        if _usable(tail) and _usable(hip) and _usable(knee) and _usable(paw):
+            pixel_length = (
+                _pixel_distance(tail, hip)
+                + _pixel_distance(hip, knee)
+                + _pixel_distance(knee, paw)
+            )
+            tail_height = 100.0 * pixel_length * float(distance_m) / float(scale_factor)
+            tail_names = ['tail', names[0], names[1], names[2]]
 
     if shoulder_height is not None and shoulder_height <= 0:
         shoulder_height = None
@@ -346,11 +420,16 @@ def measure_animal(keypoints, mask, distance_m, scale_factor, flank, compute_sho
     if back_length is not None and back_length <= 0:
         back_length = None
         back_names = []
+    if tail_height is not None and tail_height <= 0:
+        tail_height = None
+        tail_names = []
 
     return {
         'shoulder_height': shoulder_height,
         'shoulder_keypoints': shoulder_names,
         'back_length': back_length,
         'back_keypoints': back_names,
+        'tail_height': tail_height,
+        'tail_keypoints': tail_names,
         'keypoints': stored,
     }

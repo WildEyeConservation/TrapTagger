@@ -5310,7 +5310,7 @@ def _comp_image_key(camera_path, filename):
     return '/'.join(splits) + '/' + filename
 
 def null_non_unusable_body_measurements_for_cameragroups(cameragroup_ids):
-    '''Clear shoulder/back except explicit unusable marks (both stored as 0).'''
+    '''Clear body measurements except explicit unusable marks (all three stored as 0).'''
     ids = [cg_id for cg_id in set(cameragroup_ids) if cg_id is not None]
     if not ids:
         return
@@ -5322,12 +5322,21 @@ def null_non_unusable_body_measurements_for_cameragroups(cameragroup_ids):
         )
         db.session.query(Detection).filter(
             Detection.image_id.in_(image_ids),
-            or_(Detection.shoulder_height != None, Detection.back_length != None),
-            ~and_(Detection.shoulder_height == 0, Detection.back_length == 0),
+            or_(
+                Detection.shoulder_height != None,
+                Detection.back_length != None,
+                Detection.tail_height != None,
+            ),
+            ~and_(
+                Detection.shoulder_height == 0,
+                Detection.back_length == 0,
+                Detection.tail_height == 0,
+            ),
         ).update(
             {
                 Detection.shoulder_height: None,
                 Detection.back_length: None,
+                Detection.tail_height: None,
             },
             synchronize_session=False,
         )
@@ -5383,9 +5392,9 @@ def recompute_cameragroup_scale_factor(cameragroup_id, size_cache=None):
     return scale
 
 def recalc_body_measurements_for_cameragroup(cameragroup_id, scale_factor, size_cache=None):
-    '''Recalc shoulder/back from stored keypoints when distance and scale allow.
+    '''Recalc body measurements from stored keypoints when distance and scale allow.
 
-    Unusable detections (both measurements 0) are left alone. Missing required
+    Unusable detections (all three measurements 0) are left alone. Missing required
     keypoints leave that measurement null.
     '''
     from depthworker.height import measurements_from_stored_points
@@ -5411,7 +5420,11 @@ def recalc_body_measurements_for_cameragroup(cameragroup_id, scale_factor, size_
         .all()
     )
     for detection in detections:
-        if detection.shoulder_height == 0 and detection.back_length == 0:
+        if (
+            detection.shoulder_height == 0
+            and detection.back_length == 0
+            and detection.tail_height == 0
+        ):
             continue
         image = detection.image
         if image is None or image.camera is None:
@@ -5421,6 +5434,7 @@ def recalc_body_measurements_for_cameragroup(cameragroup_id, scale_factor, size_
         if not size:
             detection.shoulder_height = None
             detection.back_length = None
+            detection.tail_height = None
             continue
         width, height = size
         points = [{
@@ -5430,11 +5444,12 @@ def recalc_body_measurements_for_cameragroup(cameragroup_id, scale_factor, size_
             'score': point.score,
             'source': point.source,
         } for point in detection.pose_keypoints]
-        shoulder, back = measurements_from_stored_points(
+        shoulder, back, tail = measurements_from_stored_points(
             points, detection.flank, detection.distance, scale_value, width, height
         )
         detection.shoulder_height = shoulder
         detection.back_length = back
+        detection.tail_height = tail
 
 def refresh_cameragroup_scale_and_measurements(cameragroup_ids):
     '''After cal bbox/height changes: null non-unusable body sizes, refresh scale, recalc.

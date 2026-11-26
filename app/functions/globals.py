@@ -2183,6 +2183,7 @@ def taggingLevelSQ(sq,taggingLevel,isBounding,task_id,trapgroup_id=None):
                     Detection.pose_keypoints.any(),
                     Detection.shoulder_height != None,
                     Detection.back_length != None,
+                    Detection.tail_height != None,
                 )
                 sq = sq.join(Labelgroup)\
                         .filter(Labelgroup.task_id==task_id)\
@@ -7341,17 +7342,19 @@ def depth_estimation_preview(survey_id, task_ids, species_list):
                 and_(
                     Detection.shoulder_height == 0,
                     Detection.back_length == 0,
+                    Detection.tail_height == 0,
                 ),
             ))
             .with_entities(func.count(distinct(Detection.id)))
             .scalar()
         ) or 0
         # A stored keypoint means the sighting was already measured or edited,
-        # so a missing height or back length is not sent again.
+        # so a missing body measurement is not sent again.
         sightings_missing_measurements = (
             matching.filter(no_keypoints).filter(or_(
                 Detection.shoulder_height == None,
                 Detection.back_length == None,
+                Detection.tail_height == None,
             ))
             .with_entities(func.count(distinct(Detection.id)))
             .scalar()
@@ -7544,6 +7547,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
             or_(
                 Detection.shoulder_height == None,
                 Detection.back_length == None,
+                Detection.tail_height == None,
             ),
         )
         work_filter = Detection.distance == None
@@ -7564,6 +7568,7 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
                 Detection.distance,
                 Detection.shoulder_height,
                 Detection.back_length,
+                Detection.tail_height,
                 Detection.pose_keypoints.any(),
             )
             .distinct()
@@ -7605,7 +7610,8 @@ def launch_depth_estimation(survey_id, task_ids, species_list):
                     'known_distance': d[8],
                     'known_shoulder_height': d[9],
                     'known_back_length': d[10],
-                    'has_keypoints': bool(d[11]),
+                    'known_tail_height': d[11],
+                    'has_keypoints': bool(d[12]),
                 })
 
         if not trap_items:
@@ -7670,11 +7676,11 @@ def apply_depth_estimation_results(results):
         {
           '_job': {'cameragroup_id', 'scale_factor', 'scale_factor_computed'},
           str(detection_id): {
-            'distance', 'error', 'flank', 'shoulder_height', 'back_length',
+            'distance', 'error', 'flank', 'shoulder_height', 'back_length', 'tail_height',
             'keypoints': [{'name', 'x', 'y', 'score'}],
           },
         }
-    Distances are metres. Shoulder height and back length are centimetres.
+    Distances are metres. Shoulder/tail height and back length are centimetres.
     Keypoints with source user or user_edited are left unchanged, and a
     measurement that depends on one of those points is not overwritten.
     pose_checked is left false.
@@ -7755,6 +7761,11 @@ def apply_depth_estimation_results(results):
             new_back = float(payload['back_length'])
             if detection.back_length is None and new_back > 0:
                 detection.back_length = new_back
+        tail_names = set(payload.get('tail_keypoints') or [])
+        if 'tail_height' in payload and payload.get('tail_height') is not None and not (protected & tail_names):
+            new_tail = float(payload['tail_height'])
+            if detection.tail_height is None and new_tail > 0:
+                detection.tail_height = new_tail
         updated += 1
 
     return updated

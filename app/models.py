@@ -298,6 +298,7 @@ class Detection(db.Model):
     distance = db.Column(db.Float, index=False)
     back_length = db.Column(db.Float, index=False) # centimetres; null means not measured, 0 means the user marked it unusable
     shoulder_height = db.Column(db.Float, index=False) # centimetres; null means not measured, 0 means the user marked it unusable
+    tail_height = db.Column(db.Float, index=False) # centimetres; null means not measured, 0 means the user marked it unusable
     pose_checked = db.Column(db.Boolean, nullable=False, default=False, server_default='0', index=True)
     embeddings = db.relationship('DetectionEmbedding', backref='detection', lazy=True)
     pose_keypoints = db.relationship('PoseKeypoint', backref='detection', lazy=True)

@@ -1379,6 +1379,7 @@ def getTaggingLevelsbyTask(task_id,task_type):
             Detection.pose_keypoints.any(),
             Detection.shoulder_height != None,
             Detection.back_length != None,
+            Detection.tail_height != None,
         )
         for label in task.labels:
             count = db.session.query(Detection.id)\
@@ -10041,6 +10042,7 @@ def editSightings(image_id,task_id):
                                     detection.distance = None
                                     detection.shoulder_height = None
                                     detection.back_length = None
+                                    detection.tail_height = None
                                 detection.top = new_top
                                 detection.bottom = new_bottom
                                 detection.left = new_left
@@ -19531,10 +19533,11 @@ def savePoseReview():
                 db.session.delete(point)
             detection.shoulder_height = 0
             detection.back_length = 0
+            detection.tail_height = 0
             # Image/cluster unusable from annotation also marks the work checked.
             if edit.get('pose_checked') and not explore_save:
                 detection.pose_checked = True
-            updated[int(det_id)] = {'shoulder_height': 0, 'back_length': 0}
+            updated[int(det_id)] = {'shoulder_height': 0, 'back_length': 0, 'tail_height': 0}
             continue
 
         if edit.get('flank'):
@@ -19564,13 +19567,14 @@ def savePoseReview():
                 row.x = x
                 row.y = y
                 client_source = point.get('source')
-                if client_source in ('user', 'user_edited'):
+                client_owned = client_source in ('user', 'user_edited')
+                if client_owned:
                     row.source = client_source
                 elif moved and row.source not in ('user', 'user_edited'):
                     row.source = 'user_edited'
-                # Drop stale model confidence once a person owns the point so
-                # measurements match the explore/annotation readiness rules.
-                if row.source in ('user', 'user_edited'):
+                # Drop stale model confidence when the user creates or edits the
+                # point (drag, relabel, or replace), same as a freshly placed point.
+                if client_owned or moved or row.source in ('user', 'user_edited'):
                     row.score = None
             for name, row in existing.items():
                 if name not in kept:
@@ -19592,18 +19596,21 @@ def savePoseReview():
             # A bad image size is a broken request, so leave the stored measurements alone.
             # Missing distance, scale, or keypoints clears that measurement so a later job can retry it.
             if image_ok and distance_ok and scale_ok:
-                shoulder, back = measurements_from_stored_points(
+                shoulder, back, tail = measurements_from_stored_points(
                     points, detection.flank, detection.distance,
                     scale_factor, image_width, image_height,
                 )
                 detection.shoulder_height = shoulder
                 detection.back_length = back
+                detection.tail_height = tail
             elif image_ok:
                 detection.shoulder_height = None
                 detection.back_length = None
+                detection.tail_height = None
         updated[int(det_id)] = {
             'shoulder_height': detection.shoulder_height,
             'back_length': detection.back_length,
+            'tail_height': detection.tail_height,
         }
 
     if submit_image and image_id is not None:
@@ -19613,6 +19620,7 @@ def savePoseReview():
                 Detection.pose_keypoints.any(),
                 Detection.shoulder_height != None,
                 Detection.back_length != None,
+                Detection.tail_height != None,
             )
             detections = db.session.query(Detection)\
                             .join(Image)\
@@ -19716,6 +19724,7 @@ def editSightingsGeneral(task_id):
                         detection.distance = None
                         detection.shoulder_height = None
                         detection.back_length = None
+                        detection.tail_height = None
                     detection.top = new_top
                     detection.left = new_left
                     detection.right = new_right

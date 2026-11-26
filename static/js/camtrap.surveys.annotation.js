@@ -1288,7 +1288,7 @@ function openPoseTag() {
         document.getElementById('openSpeciesLabellingTab').disabled = true
         document.getElementById('openEmptyTab').disabled = true
 
-        document.getElementById('annotationDescription').innerHTML = "<i>Review and correct the pose points, flank, and species for animals that already have a height or back length. Mark a sighting unusable when the animal cannot be measured.</i>"
+        document.getElementById('annotationDescription').innerHTML = "<i>Review and correct the pose points, flank, and species for animals that already have a shoulder height, back length, or tail height. Mark a sighting unusable when the animal cannot be measured.</i>"
 
         clearSelect(document.getElementById('taskTaggingLevel'))
         var xhttp = new XMLHttpRequest();

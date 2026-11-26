@@ -245,7 +245,10 @@ def infer(
           if entry.get('download_ok', True)
           and entry.get('bbox_pixels')
           and not entry.get('has_keypoints')
-          and _known_number(entry.get('known_shoulder_height')) is None
+          and (
+            _known_number(entry.get('known_shoulder_height')) is None
+            or _known_number(entry.get('known_back_length')) is None
+          )
         ]
         if need_masks:
           from traptagger_api import masks_for_entries
@@ -429,6 +432,7 @@ def _download_traps(det_dir, trap_items, sourceBucket, external):
       'known_distance': item.get('known_distance'),
       'known_shoulder_height': item.get('known_shoulder_height'),
       'known_back_length': item.get('known_back_length'),
+      'known_tail_height': item.get('known_tail_height'),
       'has_keypoints': bool(item.get('has_keypoints')),
       'flank': item.get('flank') if item.get('flank') in ('L', 'R', 'A') else None,
     }
@@ -515,7 +519,8 @@ def _add_height_estimates(results, trap_entries, transect_dir, scale_factor, pos
       continue
     need_shoulder = _known_number(entry.get('known_shoulder_height')) is None
     need_back = _known_number(entry.get('known_back_length')) is None
-    if not need_shoulder and not need_back:
+    need_tail = _known_number(entry.get('known_tail_height')) is None
+    if not need_shoulder and not need_back and not need_tail:
       continue
     try:
       points = pose_model.predict(image_path, entry['bbox_pixels'])
@@ -538,6 +543,7 @@ def _add_height_estimates(results, trap_entries, transect_dir, scale_factor, pos
       flank,
       compute_shoulder=need_shoulder,
       compute_back=need_back,
+      compute_tail=need_tail,
     )
     mask = payload.get('_mask')
     if mask is not None:
@@ -552,6 +558,9 @@ def _add_height_estimates(results, trap_entries, transect_dir, scale_factor, pos
     if need_back and measured['back_length'] is not None and measured['back_length'] > 0:
       payload['back_length'] = measured['back_length']
       payload['back_keypoints'] = measured['back_keypoints']
+    if need_tail and measured['tail_height'] is not None and measured['tail_height'] > 0:
+      payload['tail_height'] = measured['tail_height']
+      payload['tail_keypoints'] = measured['tail_keypoints']
     if estimated_flank is not None:
       payload['flank'] = estimated_flank
 

@@ -676,6 +676,7 @@ function taggingMapPrep(mapID = 'map1') {
                             image.detections[i].distance = null
                             image.detections[i].shoulder_height = null
                             image.detections[i].back_length = null
+                            image.detections[i].tail_height = null
                         }
                     }
                 }

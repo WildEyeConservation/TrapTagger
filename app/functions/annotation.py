@@ -572,7 +572,8 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                             Video.filename,
                             Individual.name,
                             rDetsSQ.c.shoulder_height,
-                            rDetsSQ.c.back_length
+                            rDetsSQ.c.back_length,
+                            rDetsSQ.c.tail_height
                         )\
                         .join(Image, Cluster.images) \
                         .outerjoin(requiredimagestable,requiredimagestable.c.cluster_id==Cluster.id)\
@@ -1104,6 +1105,7 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['distance'] = float(row[26]) if row[26] is not None else None
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['shoulder_height'] = float(row[35]) if row[35] is not None else None
                     clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['back_length'] = float(row[36]) if row[36] is not None else None
+                    clusterInfo[row[0]]['images'][row[2]]['detections'][row[9]]['tail_height'] = float(row[37]) if row[37] is not None else None
 
             # Handle video
             # if id and row[31] and (row[31] not in clusterInfo[row[0]]['videos'].keys()):
@@ -1425,6 +1427,7 @@ def _attach_pose_fields(clusterInfo):
             Detection.flank,
             Detection.shoulder_height,
             Detection.back_length,
+            Detection.tail_height,
             Detection.pose_checked,
             Detection.distance,
         ).filter(Detection.id.in_(det_ids)).all()
@@ -1448,8 +1451,9 @@ def _attach_pose_fields(clusterInfo):
                 det['flank'] = Config.FLANK_TEXT[row[1]] if row[1] else 'None'
                 det['shoulder_height'] = row[2]
                 det['back_length'] = row[3]
-                det['pose_checked'] = bool(row[4])
-                det['distance'] = None if row[5] is None else float(row[5])
+                det['tail_height'] = row[4]
+                det['pose_checked'] = bool(row[5])
+                det['distance'] = None if row[6] is None else float(row[6])
                 det['keypoints'] = by_det.get(det_id, [])
 
 
@@ -1626,6 +1630,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'distance': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('distance'),
                                 'shoulder_height': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('shoulder_height'),
                                 'back_length': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('back_length'),
+                                'tail_height': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('tail_height'),
                                 'pose_checked': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('pose_checked', False),
                                 'keypoints': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('keypoints', []),
                                 'active': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['active']}
@@ -1707,6 +1712,7 @@ def translate_cluster_for_client(clusterInfo,reqId,limit,isBounding,taggingLevel
                                 'distance': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('distance'),
                                 'shoulder_height': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('shoulder_height'),
                                 'back_length': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('back_length'),
+                                'tail_height': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('tail_height'),
                                 'pose_checked': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('pose_checked', False),
                                 'keypoints': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id].get('keypoints', []),
                                 'active': clusterInfo[cluster_id]['images'][image_id]['detections'][detection_id]['active']}

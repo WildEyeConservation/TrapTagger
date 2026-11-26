@@ -131,7 +131,7 @@ function buildPoseReviewPanel(res) {
     measurements.style.fontSize = '115%'
     measurements.style.fontWeight = '600'
     measurements.style.lineHeight = '1.4'
-    measurements.innerHTML = 'Shoulder Height: -<br>Back Length: -'
+    measurements.innerHTML = 'Shoulder Height: -<br>Back Length: -<br>Tail Height: -'
     divBtns.appendChild(measurements)
 
     var unusable = document.createElement('button')
@@ -689,7 +689,20 @@ function poseShoulderReady(detection) {
 
 function poseBackReady(detection) {
     var byName = posePointsByName(detection)
-    return posePointUsable(byName.neck) && posePointUsable(byName.tail)
+    return posePointUsable(byName.shoulder_top) && posePointUsable(byName.tail)
+}
+
+function poseTailReady(detection) {
+    var byName = posePointsByName(detection)
+    if (!posePointUsable(byName.tail)) return false
+    var leftNames = ['left_hip', 'left_knee', 'left_back_paw']
+    var rightNames = ['right_hip', 'right_knee', 'right_back_paw']
+    var leftOk = poseLegComplete(byName, leftNames)
+    var rightOk = poseLegComplete(byName, rightNames)
+    var flank = poseCanonicalFlank(detection.flank)
+    if (flank === 'Left') return leftOk || rightOk
+    if (flank === 'Right') return rightOk || leftOk
+    return leftOk || rightOk
 }
 
 function poseMeasureText(detection, value, ready) {
@@ -705,7 +718,11 @@ function poseMeasureText(detection, value, ready) {
 
 function poseNoteStoredUnusable(detection) {
     if (!detection || detection.unusable) return
-    if (poseStoredZero(detection.shoulder_height) && poseStoredZero(detection.back_length)) detection.unusable = true
+    if (
+        poseStoredZero(detection.shoulder_height)
+        && poseStoredZero(detection.back_length)
+        && poseStoredZero(detection.tail_height)
+    ) detection.unusable = true
 }
 
 function poseHotkey(key) {
@@ -763,15 +780,15 @@ function poseShowUnusableModal(scope) {
     var confirm = document.getElementById('btnPoseUnusableConfirm')
     if (poseUnusableScope === 'image') {
         if (title) title.innerHTML = 'Mark Image Unusable'
-        if (body) body.innerHTML = 'This will delete all pose keypoints for every sighting on this image, and their shoulder heights and back lengths. They cannot be restored after this is saved.'
+        if (body) body.innerHTML = 'This will delete all pose keypoints for every sighting on this image, and their shoulder heights, back lengths, and tail heights. They cannot be restored after this is saved.'
         if (confirm) confirm.innerHTML = 'Mark Image Unusable (I)'
     } else if (poseUnusableScope === 'cluster') {
         if (title) title.innerHTML = 'Mark Cluster Unusable'
-        if (body) body.innerHTML = 'This will delete all pose keypoints for every sighting in this cluster, and their shoulder heights and back lengths. They cannot be restored after this is saved.'
+        if (body) body.innerHTML = 'This will delete all pose keypoints for every sighting in this cluster, and their shoulder heights, back lengths, and tail heights. They cannot be restored after this is saved.'
         if (confirm) confirm.innerHTML = 'Mark Cluster Unusable (C)'
     } else {
         if (title) title.innerHTML = 'Mark Unusable'
-        if (body) body.innerHTML = 'This will delete all pose keypoints for this sighting, and its shoulder height and back length. They cannot be restored after this is saved.'
+        if (body) body.innerHTML = 'This will delete all pose keypoints for this sighting, and its shoulder height, back length, and tail height. They cannot be restored after this is saved.'
         if (confirm) confirm.innerHTML = 'Mark Unusable (U)'
     }
     $('#modalPoseUnusable').modal('show')
@@ -813,6 +830,7 @@ function poseMarkDetectionsUnusable(detections, markChecked, after) {
             detection.keypoints = []
             detection.shoulder_height = 0
             detection.back_length = 0
+            detection.tail_height = 0
             detection._measuresPending = false
             detection._pointsPending = false
             detection._flankPending = false
@@ -836,6 +854,7 @@ function poseUndoUnusable(detection) {
     detection.unusable = false
     detection.shoulder_height = null
     detection.back_length = null
+    detection.tail_height = null
     detection._measuresPending = false
     detection._recalculating = false
     detection._pointsPending = false
@@ -880,22 +899,22 @@ function poseShowMeasurements(detection) {
     var unusableButton = document.getElementById('poseUnusableButton')
     if (unusableButton) unusableButton.innerHTML = detection && detection.unusable ? 'Undo Unusable (U)' : 'Mark Unusable (U)'
     if (!detection) {
-        node.innerHTML = 'Shoulder Height: -<br>Back Length: -'
+        node.innerHTML = 'Shoulder Height: -<br>Back Length: -<br>Tail Height: -'
         return
     }
     if (detection.unusable) {
-        node.innerHTML = 'Shoulder Height: Unusable<br>Back Length: Unusable'
+        node.innerHTML = 'Shoulder Height: Unusable<br>Back Length: Unusable<br>Tail Height: Unusable'
         return
     }
     if (detection._recalculating) {
-        node.innerHTML = 'Shoulder Height: Recalculating...<br>Back Length: Recalculating...'
+        node.innerHTML = 'Shoulder Height: Recalculating...<br>Back Length: Recalculating...<br>Tail Height: Recalculating...'
         return
     }
     if (detection._measuresPending) {
-        node.innerHTML = 'Shoulder Height: Recalculation Required<br>Back Length: Recalculation Required'
+        node.innerHTML = 'Shoulder Height: Recalculation Required<br>Back Length: Recalculation Required<br>Tail Height: Recalculation Required'
         return
     }
-    node.innerHTML = 'Shoulder Height: ' + poseMeasureText(detection, detection.shoulder_height, poseShoulderReady(detection)) + '<br>Back Length: ' + poseMeasureText(detection, detection.back_length, poseBackReady(detection))
+    node.innerHTML = 'Shoulder Height: ' + poseMeasureText(detection, detection.shoulder_height, poseShoulderReady(detection)) + '<br>Back Length: ' + poseMeasureText(detection, detection.back_length, poseBackReady(detection)) + '<br>Tail Height: ' + poseMeasureText(detection, detection.tail_height, poseTailReady(detection))
 }
 
 function poseClearSelection() {
@@ -1523,6 +1542,7 @@ function poseSave(submitImage, options) {
                     if (fresh) {
                         imageNow.detections[n].shoulder_height = fresh.shoulder_height
                         imageNow.detections[n].back_length = fresh.back_length
+                        imageNow.detections[n].tail_height = fresh.tail_height
                     }
                     imageNow.detections[n]._committedFlank = poseCanonicalFlank(imageNow.detections[n].flank)
                     imageNow.detections[n]._flankPending = false

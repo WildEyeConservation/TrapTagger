@@ -768,7 +768,7 @@ function formatDetectionDistance(distance) {
 }
 
 function formatDetectionMeasurement(value) {
-    /** Formats shoulder height or back length. Empty and unusable (0) both read as None. */
+    /** Formats shoulder/tail height or back length. Empty and unusable (0) both read as None. */
     if (value === null || value === undefined || value === '') {
         return 'None'
     }
@@ -802,6 +802,7 @@ function updateDetInfo(det=null, mapID = 'map1') {
         document.getElementById('detDistance').innerHTML = formatDetectionDistance(det.distance)
         document.getElementById('detHeight').innerHTML = formatDetectionMeasurement(det.shoulder_height)
         document.getElementById('detBackLength').innerHTML = formatDetectionMeasurement(det.back_length)
+        document.getElementById('detTailHeight').innerHTML = formatDetectionMeasurement(det.tail_height)
         if (det.individual != '-1') {
             let detIndiv = document.getElementById('detIndividual');
             detIndiv.innerHTML = det.individual_names[0]
@@ -836,6 +837,7 @@ function updateDetInfo(det=null, mapID = 'map1') {
         document.getElementById('detDistance').innerHTML = ''
         document.getElementById('detHeight').innerHTML = ''
         document.getElementById('detBackLength').innerHTML = ''
+        document.getElementById('detTailHeight').innerHTML = ''
     }
 }
 

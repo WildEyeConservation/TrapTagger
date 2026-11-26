@@ -474,6 +474,8 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         query = query.add_columns(Detection.shoulder_height.label('Shoulder Height (cm)'))
     if 'Back Length (cm)' in required_columns:
         query = query.add_columns(Detection.back_length.label('Back Length (cm)'))
+    if 'Tail Height (cm)' in required_columns:
+        query = query.add_columns(Detection.tail_height.label('Tail Height (cm)'))
 
     query = query.distinct()
     df = pd.read_sql(query.statement,db.session.bind)
@@ -529,6 +531,8 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
             df2['Shoulder Height (cm)'] = float('nan')
         if 'Back Length (cm)' in required_columns:
             df2['Back Length (cm)'] = float('nan')
+        if 'Tail Height (cm)' in required_columns:
+            df2['Tail Height (cm)'] = float('nan')
 
         # This ensures that multi non-rDet images only have one empty detection
         df2 = df2.drop_duplicates(subset=['Image ID'], keep='first')
@@ -722,7 +726,7 @@ def create_task_dataframe(task_id,selectedLevel,include,exclude,trapgroup_id,sta
         if level_type=='site': level_type='trapgroup'
         df[level_name+' URL'] = df.apply(lambda x: generate_url(rootUrl,level_type,x[level]), axis=1)
 
-    for column in ('Shoulder Height (cm)', 'Back Length (cm)'):
+    for column in ('Shoulder Height (cm)', 'Back Length (cm)', 'Tail Height (cm)'):
         if column in df.columns:
             df[column] = df[column].apply(_format_body_measurement)
 
