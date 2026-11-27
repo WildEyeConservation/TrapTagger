@@ -1105,7 +1105,7 @@ function updateCanvas(mapID = 'map1') {
                         // activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + image.url)
                         // fullRes[mapID] = true
                         let currentActive = activeImage[mapID]._url
-                        if (currentActive != null && currentActive == "https://"+bucketName+".s3.amazonaws.com/" + image.url) {2
+                        if (currentActive != null && currentActive == "https://"+bucketName+".s3.amazonaws.com/" + image.url) {
                             fullRes[mapID] = true
                             activeImage[mapID].setUrl("https://"+bucketName+".s3.amazonaws.com/" + image.url)
                         } else {
@@ -1419,7 +1419,7 @@ function goToPrevCluster(mapID = 'map1') {
     if (isBounding) {
         if (bounding_actions.length > 0) {
             let bounding_action = bounding_actions.pop();
-            if (bounding_action.type == 'skip') {2
+            if (bounding_action.type == 'skip') {
                 if (bounding_action.index >= 0 && bounding_action.index < clusterIndex[mapID]) {
                     clusterIndex[mapID] = bounding_action.index;
                 }
