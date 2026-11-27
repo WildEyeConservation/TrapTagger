@@ -77,17 +77,46 @@ def delete_detections(survey_id, camera_ids=None, image_ids=None, ids=None):
     db.session.commit()
 
     # Handle IndSimilarities (if they were not handled elsewhere)
-    inds1 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_1.in_(det_select)).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
-    inds2 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_2.in_(det_select)).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
-    inds = inds1 + inds2
+    # inds1 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_1.in_(det_select)).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
+    # inds2 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_2.in_(det_select)).filter(IndSimilarity.score>=0).delete(synchronize_session=False)
+    # inds = inds1 + inds2
 
-    indSims1 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_1.in_(det_select)).filter(IndSimilarity.score<0)\
-                .update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
-    indSims2 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_2.in_(det_select)).filter(IndSimilarity.score<0)\
-                .update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
-    indSimilarities = indSims1 + indSims2
+    # indSims1 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_1.in_(det_select)).filter(IndSimilarity.score<0)\
+    #             .update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
+    # indSims2 = db.session.query(IndSimilarity).filter(IndSimilarity.detection_2.in_(det_select)).filter(IndSimilarity.score<0)\
+    #             .update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
+    # indSimilarities = indSims1 + indSims2
 
-    db.session.commit()
+    inds=0
+    indSimilarities=0
+    while True:
+        ind_sim_ids= [r[0] for r in db.session.query(IndSimilarity.id).filter(IndSimilarity.detection_1.in_(det_select)).filter(IndSimilarity.score>=0).limit(1000).all()]
+        if len(ind_sim_ids) == 0:
+            break
+        inds += db.session.query(IndSimilarity).filter(IndSimilarity.id.in_(ind_sim_ids)).delete(synchronize_session=False)
+        db.session.commit()
+    
+    while True:
+        ind_sim_ids= [r[0] for r in db.session.query(IndSimilarity.id).filter(IndSimilarity.detection_2.in_(det_select)).filter(IndSimilarity.score>=0).limit(1000).all()]
+        if len(ind_sim_ids) == 0:
+            break
+        inds += db.session.query(IndSimilarity).filter(IndSimilarity.id.in_(ind_sim_ids)).delete(synchronize_session=False)
+        db.session.commit()
+
+    while True:
+        ind_sim_ids= [r[0] for r in db.session.query(IndSimilarity.id).filter(IndSimilarity.detection_1.in_(det_select)).filter(IndSimilarity.score<0).limit(1000).all()]
+        if len(ind_sim_ids) == 0:
+            break
+        indSimilarities += db.session.query(IndSimilarity).filter(IndSimilarity.id.in_(ind_sim_ids)).update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
+        db.session.commit()
+    
+    while True:
+        ind_sim_ids= [r[0] for r in db.session.query(IndSimilarity.id).filter(IndSimilarity.detection_2.in_(det_select)).filter(IndSimilarity.score<0).limit(1000).all()]
+        if len(ind_sim_ids) == 0:
+            break
+        indSimilarities += db.session.query(IndSimilarity).filter(IndSimilarity.id.in_(ind_sim_ids)).update({'detection_1': None, 'detection_2': None}, synchronize_session=False)
+        db.session.commit() 
+
     app.logger.info(f'IndSimilarities: {inds} deleted, Other IndSimilarities: {indSimilarities} updated successfully')
 
     #Delete DetSimilarities
