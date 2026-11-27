@@ -23,6 +23,9 @@ var deletedERIntegrations = []
 var deletedLiveIntegrations = []
 var newERIntegrations = {}
 var newLiveIntegrations = {}
+var newReadApiIntegrations = {}
+var deletedReadApiIntegrations = []
+var readApiCounter = 0
 var tabActive = 'baseAccountTab'
 var isRoot = false
 
@@ -80,6 +83,162 @@ function buildIntegrationSelect(){
         var survey_id = document.getElementById('surveySelect-'+newId).value
         newLiveIntegrations[newId] = {'survey_id': survey_id}
     }
+    else if (integrationSelect.value == 'readapi'){
+        var newId = 'r'+ (readApiCounter++).toString()
+        buildReadApi(newId, true)
+        var org_id = document.getElementById('readApiOrgSelect-'+newId).value
+        newReadApiIntegrations[newId] = {'org_id': org_id}
+    }
+}
+
+function showIntegrationDiv(value){
+    /** Shows the integrations of the selected type and hides the others. */
+    document.getElementById('erDiv').hidden = (value != 'earthranger')
+    document.getElementById('liveDiv').hidden = (value != 'live')
+    document.getElementById('readApiDiv').hidden = (value != 'readapi')
+}
+
+function buildReadApi(IDNum, newIntegration=false){
+    /** Builds the Read-only API integration: one read-only key per organisation, for outside tools
+     * (dashboards, scripts) to list surveys and request CSV exports. The key can't change anything.
+     * IDNum is 'r<n>' for a new integration and 'k<database id>' for a saved one. */
+
+    var readApiDiv = document.getElementById('readApiDiv')
+    var containingDiv = document.createElement('div')
+    containingDiv.setAttribute('id','integrationSelectDiv-'+String(IDNum))
+    containingDiv.style.borderTop = '1px solid rgb(60,74,89)'
+    containingDiv.style.padding = '20px'
+    readApiDiv.appendChild(containingDiv)
+
+    var row = document.createElement('div')
+    row.classList.add('row')
+    containingDiv.appendChild(row)
+
+    var col1 = document.createElement('div')
+    col1.classList.add('col-lg-5')
+    row.appendChild(col1)
+
+    var col2 = document.createElement('div')
+    col2.classList.add('col-lg-5')
+    row.appendChild(col2)
+
+    var col3 = document.createElement('div')
+    col3.classList.add('col-lg-2')
+    row.appendChild(col3)
+
+    var orgDiv = document.createElement('div')
+    col1.appendChild(orgDiv)
+
+    var h5 = document.createElement('h5')
+    h5.innerHTML = 'Organisation'
+    h5.setAttribute('style','margin-bottom: 2px;')
+    orgDiv.appendChild(h5)
+
+    h5 = document.createElement('div')
+    h5.setAttribute('style',"font-size: 80%; margin-bottom: 2px")
+    orgDiv.appendChild(h5)
+
+    if (newIntegration){
+        h5.innerHTML = '<i>Select the organisation whose surveys the key can read. A key can list surveys and request CSV exports, but cannot change anything.</i>'
+
+        var orgSelect = document.createElement('select')
+        orgSelect.setAttribute('class','form-control')
+        orgSelect.setAttribute('id','readApiOrgSelect-'+String(IDNum))
+        orgDiv.appendChild(orgSelect)
+
+        var optionTexts = ['None']
+        var optionValues = ['-1']
+        for (let i=0;i<globalOrganisations.length;i++) {
+            optionTexts.push(globalOrganisations[i].name)
+            optionValues.push(globalOrganisations[i].id)
+        }
+        fillSelect(orgSelect, optionTexts, optionValues)
+
+        $('#readApiOrgSelect-'+String(IDNum)).on('change', function() {
+            id = this.id.split('-')[1]
+            newReadApiIntegrations[id] = {'org_id': this.value}
+        });
+    }
+    else{
+        h5.innerHTML = '<i>Organisation whose surveys the key can read.</i>'
+        var orgInput = document.createElement('input')
+        orgInput.setAttribute('type','text')
+        orgInput.setAttribute('class','form-control')
+        orgInput.setAttribute('id','readApiOrgInput-'+String(IDNum))
+        orgInput.disabled = true
+        orgInput.style.backgroundColor = 'white'
+        orgDiv.appendChild(orgInput)
+
+        var keyDiv = document.createElement('div')
+        col2.appendChild(keyDiv)
+
+        var h5 = document.createElement('h5')
+        h5.innerHTML = 'API Key'
+        h5.setAttribute('style','margin-bottom: 2px;')
+        keyDiv.appendChild(h5)
+
+        h5 = document.createElement('div')
+        h5.setAttribute('style',"font-size: 80%; margin-bottom: 2px")
+        h5.innerHTML = '<i>Generate a new key. The old key stops working straight away.</i>'
+        keyDiv.appendChild(h5)
+
+        var btnGenerateKey = document.createElement('button')
+        btnGenerateKey.setAttribute('class','btn btn-primary')
+        btnGenerateKey.setAttribute('id','btnGenerateReadKey-'+String(IDNum))
+        btnGenerateKey.innerHTML = 'Generate Key'
+        keyDiv.appendChild(btnGenerateKey)
+
+        btnGenerateKey.addEventListener('click', function() {
+            var db_id = this.id.split('-')[1].slice(1)
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange =
+            function() {
+                if (this.readyState == 4 && this.status == 200) {
+                    reply = JSON.parse(this.responseText);
+                    if (reply.api_keys.length > 0) {
+                        loadApiKeys(reply.api_keys)
+                    }
+                }
+            }
+            xhttp.open("GET", '/generateNewReadAPIKey/'+db_id);
+            xhttp.send();
+        });
+    }
+
+    var btnRemoveRead = document.createElement('button');
+    btnRemoveRead.id = 'btnRemoveIntegration-'+IDNum;
+    btnRemoveRead.setAttribute("class",'btn btn-danger btn-block');
+    btnRemoveRead.innerHTML = 'Remove';
+    col3.appendChild(btnRemoveRead);
+    btnRemoveRead.addEventListener('click', function(wrapIDNum) {
+        return function() {
+            if (String(wrapIDNum).includes('r')){
+                delete newReadApiIntegrations[wrapIDNum]
+            }
+            else{
+                deletedReadApiIntegrations.push(parseInt(String(wrapIDNum).slice(1)))
+            }
+            document.getElementById('integrationSelectDiv-'+wrapIDNum).remove();
+        }
+    }(IDNum));
+}
+
+function getReadApiIntegrations(){
+    /** Get the Read-only API integrations from the page. (New, Deleted) */
+    var new_integrations = []
+    for (var key in newReadApiIntegrations){
+        if (newReadApiIntegrations[key].org_id != '' && newReadApiIntegrations[key].org_id != '-1'){
+            new_integrations.push(newReadApiIntegrations[key])
+        }
+    }
+    return {'new': new_integrations, 'deleted': deletedReadApiIntegrations}
+}
+
+function loadReadApiIntegration(IDNum, organisation_id, organisation_name){
+    /** Loads a saved Read-only API integration. */
+    var orgInput = document.getElementById('readApiOrgInput-'+String(IDNum))
+    orgInput.value = organisation_name
+    orgInput.classList.add('org-'+String(organisation_id))
 }
 
 function buildEarthRanger(IDNum){
@@ -495,9 +654,11 @@ function saveIntegrations(){
         var integrations = []
         var earth_ranger_integrations = getEarthRangerIntegrations()
         var live_integrations = getLiveIntegrations()
+        var read_api_integrations = getReadApiIntegrations()
         integrations = {
             'earthranger': earth_ranger_integrations,
-            'live': live_integrations
+            'live': live_integrations,
+            'readapi': read_api_integrations
         }
 
         var formData = new FormData();
@@ -521,6 +682,9 @@ function saveIntegrations(){
                 
                     newLiveIntegrations = {}
                     deletedLiveIntegrations = []
+
+                    newReadApiIntegrations = {}
+                    deletedReadApiIntegrations = []
                     loadIntegrations();
 
                     if (reply.new_api_keys && reply.new_api_keys.length > 0){
@@ -659,6 +823,33 @@ function validateIntegrationSettings(){
     //Unique errors
     liveErrors = [...new Set(liveErrors)]
 
+    //Read-only API Validation (one key per organisation)
+    var readApiErrors = []
+    var read_orgs = []
+    var readOrgInputs = document.querySelectorAll('[id^="readApiOrgInput-"]')
+    for (let i = 0; i < readOrgInputs.length; i++){
+        readOrgInputs[i].classList.forEach(function(item){
+            if (item.startsWith('org-')){
+                read_orgs.push(item.split('-')[1])
+            }
+        })
+    }
+    for (var key in newReadApiIntegrations){
+        var org = newReadApiIntegrations[key].org_id
+        if (org == '-1' || org == ''){
+            valid = false
+            readApiErrors.push('Organisation is required.')
+        }
+        else if (read_orgs.indexOf(String(org)) != -1){
+            valid = false
+            readApiErrors.push('Each organisation can only have one read-only API key.')
+        }
+        else{
+            read_orgs.push(String(org))
+        }
+    }
+    readApiErrors = [...new Set(readApiErrors)]
+
     if (!valid){
         errorMessage = 'You have errors in your integrations settings. Please correct them before saving. <br>'
         if (erErrors.length > 0){
@@ -672,6 +863,13 @@ function validateIntegrationSettings(){
             errorMessage += '<b>Live Data Integration:</b> <br>'
             for (let i = 0; i < liveErrors.length; i++){
                 errorMessage += liveErrors[i] + ' '
+            }
+            errorMessage += '<br>'
+        }
+        if (readApiErrors.length > 0){
+            errorMessage += '<b>Read-only API Integration:</b> <br>'
+            for (let i = 0; i < readApiErrors.length; i++){
+                errorMessage += readApiErrors[i] + ' '
             }
         }
         document.getElementById('settingsErrors').innerHTML = errorMessage
@@ -721,15 +919,12 @@ function loadIntegrations(){
         liveDiv.removeChild(liveDiv.firstChild);
     }
 
-    var integrationSelect = document.getElementById('integrationSelect')
-    if (integrationSelect.value == 'live'){
-        erDiv.hidden = true
-        liveDiv.hidden = false
+    var readApiDiv = document.getElementById('readApiDiv')
+    while (readApiDiv.firstChild) {
+        readApiDiv.removeChild(readApiDiv.firstChild);
     }
-    else{
-        erDiv.hidden = false
-        liveDiv.hidden = true
-    }
+
+    showIntegrationDiv(document.getElementById('integrationSelect').value)
 
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange =
@@ -747,6 +942,10 @@ function loadIntegrations(){
                 else if (integrations[i].integration == 'live'){
                     buildLive(integrations[i].id)
                     loadLiveIntegration(integrations[i].survey_id, integrations[i].survey, integrations[i].id)
+                }
+                else if (integrations[i].integration == 'readapi'){
+                    buildReadApi('k'+integrations[i].id)
+                    loadReadApiIntegration('k'+integrations[i].id, integrations[i].organisation, integrations[i].organisation_name)
                 }
             }
         }
@@ -932,17 +1131,7 @@ $('#btnConfirmChange').on('click', function() {
 
 $('#integrationSelect').on('change', function() {
     /** Event listener for the integration select dropdown. */
-    var erDiv = document.getElementById('erDiv')
-    var liveDiv = document.getElementById('liveDiv')
-
-    if (this.value == 'live'){
-        erDiv.hidden = true
-        liveDiv.hidden = false
-    }
-    else{
-        erDiv.hidden = false
-        liveDiv.hidden = true
-    }   
+    showIntegrationDiv(this.value)
 });
 
 function loadApiKeys(api_keys){
@@ -974,7 +1163,8 @@ function loadApiKeys(api_keys){
         var inputName = document.createElement('input')
         inputName.setAttribute('type','text')
         inputName.setAttribute('class','form-control')
-        inputName.value = surveyNames[api_keys[i].survey_id]
+        var keyId = api_keys[i].key_id ? api_keys[i].key_id : api_keys[i].survey_id
+        inputName.value = api_keys[i].label ? api_keys[i].label : surveyNames[api_keys[i].survey_id]
         inputName.disabled = true
         inputName.style.backgroundColor = 'white'
         col1.appendChild(inputName)
@@ -982,7 +1172,7 @@ function loadApiKeys(api_keys){
         var inputKey = document.createElement('input')
         inputKey.setAttribute('type','text')
         inputKey.setAttribute('class','form-control')
-        inputKey.id = 'id-'+api_keys[i].survey_id
+        inputKey.id = 'id-'+keyId
         inputKey.value = api_keys[i].api_key
         inputKey.disabled = true
         inputKey.style.backgroundColor = 'white'
@@ -1003,7 +1193,7 @@ function loadApiKeys(api_keys){
                 var copyText = document.getElementById('id-'+wrapSurveyID).value
                 navigator.clipboard.writeText(copyText)
             }
-        }(api_keys[i].survey_id));
+        }(keyId));
     }
 
     modalAPIKey.modal({keyboard: true});	
