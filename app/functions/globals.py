@@ -109,7 +109,7 @@ from app.functions.delete import delete_clusters
 
 #     # Flush all other (non-default) queues
 #     for queue in allQueues:
-#         if queue not in ['default','ram_intensive']:
+#         if queue not in ['default','ram_intensive','short']:
 #             while True:
 #                 task = GLOBALS.redisClient.blpop(queue, timeout=1)
 #                 if not task:
@@ -130,6 +130,8 @@ from app.functions.delete import delete_clusters
 #         # priority = active_task['delivery_info']['priority']
 #         if 'ram_worker' in active_task['hostname']:
 #             queue = 'ram_intensive'
+#         elif 'short_worker' in active_task['hostname']:
+#             queue = 'short'
 #         else:
 #             queue = 'default'
 #         app.logger.info('Rescheduling {} with args {}'.format(active_task['name'],kwargs))
@@ -322,7 +324,7 @@ def getInstancesRequired(current_instances,queue_type,queue_length,total_images_
             if current_instances == 0:
                 instances_required = math.ceil(instances_required)
             else:
-                instances_required = math.floor(instances_required)-1
+                instances_required = math.floor(instances_required)
 
     # Jobs that have a local queue should only scale up if the server is overwhelmed
     elif queue_type == 'local':
@@ -4639,7 +4641,7 @@ def deleteFile(self,fileName):
     #         try:
     #             os.remove(fileName)
     #         except:
-    #             deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=300)
+    #             deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=300, queue='short')
 
     # except Exception as exc:
     #     app.logger.info(' ')

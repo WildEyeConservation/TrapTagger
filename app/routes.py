@@ -843,7 +843,7 @@ def deleteIndividual(individual_id):
                                                 .filter(Individual.active==True)\
                                                 .all()]
 
-            calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals,species=individual.species)
+            calculate_individual_similarity.apply_async(kwargs={'individual1':newIndividual.id, 'individuals2':individuals, 'species':individual.species}, queue='short')
 
 
         delete_individuals_helper(individual_ids=[individual.id])
@@ -6529,8 +6529,8 @@ def dissociateDetection(detection_id):
                                                     .filter(Individual.id != newIndividual.id)\
                                                     .all()]
 
-        calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1,species=individual.species)
-        calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals2,species=individual.species)
+        calculate_individual_similarity.apply_async(kwargs={'individual1':individual.id, 'individuals2':individuals1, 'species':individual.species}, queue='short')
+        calculate_individual_similarity.apply_async(kwargs={'individual1':newIndividual.id, 'individuals2':individuals2, 'species':individual.species}, queue='short')
 
         newIndSimilarity = IndSimilarity(individual_1=individual.id, individual_2=newIndividual.id, score=0)
         db.session.add(newIndSimilarity)
@@ -9001,13 +9001,13 @@ def assignLabel(clusterID):
 
                     session.commit()
 
-                    if use_celery_to_update_labelgroups: update_labelgroup_labels_tags.apply_async(kwargs={'cluster_id':cluster.id})
+                    if use_celery_to_update_labelgroups: update_labelgroup_labels_tags.apply_async(kwargs={'cluster_id':cluster.id}, queue='short')
 
                     if explore and taggingLevel!='-2':
                         individual_check = session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.contains(task)).first()
                         if individual_check:
                             individual_check = individual_check[0]
-                            check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id,'cluster_id':cluster.id})
+                            check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id,'cluster_id':cluster.id}, queue='short')
 
                     session.close()
 
@@ -9819,9 +9819,9 @@ def editSightings(image_id,task_id):
                     db.session.commit()
 
             if handle_indiv_dets['deleted']:
-                handle_individual_sighting.apply_async(kwargs={'detection_ids':handle_indiv_dets['deleted'], 'state': 'deleted'})
+                handle_individual_sighting.apply_async(kwargs={'detection_ids':handle_indiv_dets['deleted'], 'state': 'deleted'}, queue='short')
             if handle_indiv_dets['edited']:
-                handle_individual_sighting.apply_async(kwargs={'detection_ids':handle_indiv_dets['edited'], 'state': 'edited'})
+                handle_individual_sighting.apply_async(kwargs={'detection_ids':handle_indiv_dets['edited'], 'state': 'edited'}, queue='short')
         else:
             return {'redirect': url_for('done')}, 278
 
@@ -10205,7 +10205,7 @@ def checkDownload(fileType,selectedTask):
 
     try:
         check = GLOBALS.s3client.head_object(Bucket=Config.BUCKET,Key=fileName)
-        # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+        # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600, queue='short')
         return json.dumps('https://'+Config.BUCKET+'.s3.amazonaws.com/'+fileName.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C'))
     except:
         # file does not exist
@@ -10237,7 +10237,7 @@ def checkDownload(fileType,selectedTask):
 #         filename += '.json'
 
 #     if os.path.isfile(fileName):
-#         deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=600)
+#         deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=600, queue='short')
 #         return send_file('../'+fileName,
 #                         attachment_filename=filename,
 #                         as_attachment=True,
@@ -12893,23 +12893,23 @@ def getActivityPattern():
                         activity_results = celery_result['activity_results']
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username}, queue='short')
                     else:
                         message = celery_result['error']
                         status = 'FAILURE'
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username}, queue='short')
                 elif status == 'FAILURE':
                     message = 'Task {} failed'.format(result_id)
                     result.forget()
                     GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username}, queue='short')
             else:
                 activity_results = None
                 message = 'No task ID'
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username}, queue='short')
 
     return json.dumps({'status': status, 'activity_results': activity_results, 'message': message, 'folder': folder})
 
@@ -13116,25 +13116,25 @@ def getOccupancy():
                         occupancy_results = celery_result['occupancy_results']
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username}, queue='short')
                     else:
                         status = celery_result['status']
                         message = celery_result['error']
                         occupancy_results = {}
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username}, queue='short')
                 elif status == 'FAILURE':
                     message = 'Task {} failed'.format(result_id)
                     occupancy_results = {}
                     result.forget()
                     GLOBALS.redisClient.delete('occupancy_analysis_' + str(current_user.id))
-                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username}, queue='short')
             else:
                 occupancy_results = {}
                 message = 'No task ID'
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username}, queue='short')
 
     return json.dumps({'status': status, 'results': occupancy_results, 'message': message, 'folder': folder})
 
@@ -13199,7 +13199,7 @@ def getCovariateCSV():
                     cov_url = "https://"+ Config.BUCKET + ".s3.amazonaws.com/" + fileName.replace('+','%2B').replace('?','%3F').replace('#','%23').replace('\\','%5C')
 
                     # Schedule deletion
-                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600, queue='short')
 
 
     return json.dumps({'cov_url': cov_url})
@@ -13358,25 +13358,25 @@ def getSpatialCaptureRecapture():
                                 scr_results['summary'][0]['Flank'] = Config.FLANK_TEXT[scr_results['summary'][0]['Flank']].capitalize()
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username}, queue='short')
                     else:
                         status = celery_result['status']
                         msg = celery_result['error']
                         scr_results = {}
                         result.forget()
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                        clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username}, queue='short')
                 elif status == 'FAILURE':
                     msg = 'Task {} failed'.format(result_id)
                     scr_results = {}
                     result.forget()
                     GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                    clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username}, queue='short')
             else:
                 msg = 'No task id found'
                 scr_results = {}
                 GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
-                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username})
+                clean_up_R_results.apply_async(kwargs={'R_type': R_type, 'folder': folder, 'user_name': current_user.username}, queue='short')
 
     return json.dumps({'status': status, 'results': scr_results, 'message': msg, 'folder': folder})
 
@@ -13432,7 +13432,7 @@ def cancelResults():
                             celery.control.revoke(result_id)
                         else:
                             celery.control.revoke(result_id)
-                            clean_up_R_results.apply_async(kwargs={'R_type': result_type, 'folder': folder, 'user_name': current_user.username})
+                            clean_up_R_results.apply_async(kwargs={'R_type': result_type, 'folder': folder, 'user_name': current_user.username}, queue='short')
                         if Config.DEBUGGING: app.logger.info('Revoked task {}'.format(result_id))
                         GLOBALS.redisClient.delete('analysis_' + str(current_user.id))
                         status = 'SUCCESS'
@@ -17344,7 +17344,7 @@ def mergeIndividuals():
                                                     .filter(Individual.id != individual1.id)\
                                                     .all()]
 
-        calculate_individual_similarity.delay(individual1=individual1.id,individuals2=individuals2,species=individual1.species)
+        calculate_individual_similarity.apply_async(kwargs={'individual1':individual1.id, 'individuals2':individuals2, 'species':individual1.species}, queue='short')
 
         status = 'success'
         msg = 'Individuals have been merged successfully.'
@@ -17439,7 +17439,7 @@ def mergeDetectionIntoIndividual():
                                                         .filter(Individual.id != individual.id)\
                                                         .filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id))\
                                                         .all()]
-            calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1,species=individual.species)
+            calculate_individual_similarity.apply_async(kwargs={'individual1':individual.id, 'individuals2':individuals1, 'species':individual.species}, queue='short')
         else: 
             individuals1 = []
         
@@ -17453,7 +17453,7 @@ def mergeDetectionIntoIndividual():
                                             .filter(or_(IndSimilarity.individual_1==merge_individual.id,IndSimilarity.individual_2==merge_individual.id))\
                                             .all()]
         if merge_individual.id in individuals1 and individual.id in individuals2: individuals2.remove(individual.id)
-        calculate_individual_similarity.delay(individual1=merge_individual.id,individuals2=individuals2,species=merge_individual.species)
+        calculate_individual_similarity.apply_async(kwargs={'individual1':merge_individual.id, 'individuals2':individuals2, 'species':merge_individual.species}, queue='short')
 
         return json.dumps({'status': 'success'})
 
@@ -18294,7 +18294,7 @@ def markUnidentifiable(individual_id):
                                     .filter(or_(IndSimilarity.individual_1==individual.id,IndSimilarity.individual_2==individual.id))\
                                     .filter(or_(IndSimilarity.detection_1==int(detection_id),IndSimilarity.detection_2==int(detection_id)))\
                                     .all()]    
-            if individuals1: calculate_individual_similarity.delay(individual1=individual.id,individuals2=individuals1,species=individual.species)
+            if individuals1: calculate_individual_similarity.apply_async(kwargs={'individual1':individual.id, 'individuals2':individuals1, 'species':individual.species}, queue='short')
 
         else: 
             for detection in individual.detections:
@@ -18375,7 +18375,7 @@ def restoreUnidentifiableDetection(detection_id, individual_id):
                                         .filter(Individual.id != newIndividual.id)\
                                         .all()]
 
-        calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals,species=individual.species)
+        calculate_individual_similarity.apply_async(kwargs={'individual1':newIndividual.id, 'individuals2':individuals, 'species':individual.species}, queue='short')
 
         status = 'success'
     
@@ -18942,7 +18942,7 @@ def editSightingsGeneral(task_id):
                                                                     .filter(Individual.id != newIndividual.id)\
                                                                     .all()]
                         # Calculate similarity between new individual and existing individuals (use heuristic algorithm because no detection similarity has been calculated)
-                        calculate_individual_similarity.delay(individual1=newIndividual.id,individuals2=individuals2,species=species,algorithm='heuristic')
+                        calculate_individual_similarity.apply_async(kwargs={'individual1':newIndividual.id, 'individuals2':individuals2, 'species':species, 'algorithm':'heuristic'}, queue='short')
                         detIndivs[detID] = newIndividual.id
         elif action == 'label':
             label = detection_edits['label']
@@ -19012,14 +19012,14 @@ def editSightingsGeneral(task_id):
         db.session.commit()
 
         if update_labels:
-            update_labelgroup_labels_tags.apply_async(kwargs={'cluster_id': cluster.id})
+            update_labelgroup_labels_tags.apply_async(kwargs={'cluster_id': cluster.id}, queue='short')
 
         for cluster_id in individual_mismatch_checks:
-            check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id,'cluster_id':cluster_id})
+            check_individual_detection_mismatch.apply_async(kwargs={'task_id':task_id,'cluster_id':cluster_id}, queue='short')
 
         for state in handle_indiv_dets:
             if handle_indiv_dets[state]:
-                handle_individual_sighting.apply_async(kwargs={'detection_ids': handle_indiv_dets[state], 'state': state})
+                handle_individual_sighting.apply_async(kwargs={'detection_ids': handle_indiv_dets[state], 'state': state}, queue='short')
 
     return json.dumps({'status':'success','detDbIDs':detDbIDs, 'detIndivs':detIndivs, 'cluster_labels':cluster_labels, 'annotator':annotator, 'update_labels':update_labels}) 
 
@@ -19114,11 +19114,11 @@ def assignSpeciesToClusterInID():
                 cluster.timestamp = datetime.utcnow()
                 db.session.commit()
 
-                if use_celery_to_update_labelgroups: update_labelgroup_labels_tags.apply_async(kwargs={'cluster_id':cluster.id})
+                if use_celery_to_update_labelgroups: update_labelgroup_labels_tags.apply_async(kwargs={'cluster_id':cluster.id}, queue='short')
 
                 individual_check = db.session.query(Individual.id).join(Detection, Individual.detections).join(Image).join(Cluster, Image.clusters).filter(Cluster.id==cluster.id).filter(Individual.tasks.contains(cluster.task)).first()
                 if individual_check:
-                    check_individual_detection_mismatch.apply_async(kwargs={'task_id':cluster.task_id,'cluster_id':cluster.id})
+                    check_individual_detection_mismatch.apply_async(kwargs={'task_id':cluster.task_id,'cluster_id':cluster.id}, queue='short')
 
                 cluster_labels[cluster.id] = {
                     'label': [l.description for l in cluster.labels],

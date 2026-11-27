@@ -14,9 +14,9 @@
 
 FROM nvidia/cuda:11.4.1-cudnn8-runtime-ubi8
 FROM python:3.8.12
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y git 
+RUN sed -i '/security/d' /etc/apt/sources.list \
+    && apt-get update \
+    && apt-get install -y git
 RUN apt-get install ffmpeg libsm6 libxext6 postgresql -y
 RUN apt-get install wget
 RUN apt-get install unzip

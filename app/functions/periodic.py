@@ -113,6 +113,9 @@ def importMonitor():
             
             for queue in queues:
                 instance_count = instances_required[queue]-current_instances[queue]
+                if instance_count > 0 and queue in Config.QUEUES and Config.QUEUES[queue]['type'] == 'CPU':
+                    # Cap the number of instances to launch based on the launch step for CPU queues
+                    instance_count = min(instance_count, Config.QUEUES[queue]['launch_step'])
                 if instance_count > 0:
                     if queue in Config.QUEUES.keys():
                         ami = Config.QUEUES[queue]['ami']
@@ -1007,7 +1010,7 @@ def manageDownloadRequests():
                             fileName = org_folder+'/docs/'+org_name+'_'+user_name+'_'+survey_name+'_'+task_name +'_'+ request.name +'.' + Config.RESULT_TYPES[request.type]
                         else:
                             fileName = org_folder+'/docs/'+org_name+'_'+user_name+'_'+survey_name+'_'+task_name + '.' + Config.RESULT_TYPES[request.type]
-                        deleteFile.apply_async(kwargs={'fileName': fileName})
+                        deleteFile.apply_async(kwargs={'fileName': fileName}, queue='short')
                         db.session.delete(request)
         
         db.session.commit() 

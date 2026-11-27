@@ -88,41 +88,44 @@ class Config(object):
 
     #Worker config
     PARALLEL_AMI = os.environ.get('PARALLEL_AMI')
+    GPU_AMI = os.environ.get('GPU_AMI')
+    STATISTICS_AMI = os.environ.get('STATISTICS_AMI')
     LLAVA_AMI = os.environ.get('LLAVA_AMI')
     BRANCH = os.environ.get('BRANCH')
     GPU_INSTANCE_TYPES = ['g4dn.xlarge'] #['p3.2xlarge', 'g4dn.xlarge', 'g3s.xlarge']
     XL_GPU_INSTANCE_TYPES = ['g5.12xlarge']
-    CPU_INSTANCE_TYPES = ['t2.xlarge','t3a.xlarge'] #['t2.medium', 't3a.medium']
-    PIPELINE_INSTANCE_TYPES = ['t2.xlarge','t3a.xlarge']
+    CPU_INSTANCE_TYPES = ['t2.medium','t3a.medium'] #['t2.xlarge','t3a.xlarge']
+    CPU_WORKERS = 1
+    PIPELINE_INSTANCE_TYPES = ['t2.medium','t3a.medium']
     INSTANCE_RATES = {
         'celery':           {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #measured
         'classification':   {'p3.2xlarge': 11668, 'g4dn.xlarge': 4128, 'g3s.xlarge': 2600}, #estimated
-        'parallel':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
-        'parallel_2':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
-        'default':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
-        'statistics':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
-        'pipeline':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},  #estimated
+        'parallel':         {'t2.medium': 1000, 't3a.medium': 1000},  #estimated
+        'parallel_2':         {'t2.medium': 1000, 't3a.medium': 1000},  #estimated
+        'default':         {'t2.medium': 1000, 't3a.medium': 1000},  #estimated
+        'statistics':         {'t2.medium': 1000, 't3a.medium': 1000},  #estimated
+        'pipeline':         {'t2.medium': 1000, 't3a.medium': 1000},  #estimated
         'llava':           {'g5.12xlarge': 3130}, #measured. 20 min startup
         'similarity':      {'g4dn.xlarge': 4128},
-        'utility':         {'t2.xlarge': 1000, 't3a.xlarge': 1000},
-        'utility_2':       {'t2.xlarge': 1000, 't3a.xlarge': 1000},
-        'individual_id':   {'t2.xlarge': 1000, 't3a.xlarge': 1000}
+        'utility':         {'t2.medium': 1000, 't3a.medium': 1000},
+        'utility_2':       {'t2.medium': 1000, 't3a.medium': 1000},
+        'individual_id':   {'t2.medium': 1000, 't3a.medium': 1000}
     } #Images per hour
     SG_ID = os.environ.get('SG_ID')
     PUBLIC_SUBNET_ID = os.environ.get('PUBLIC_SUBNET_ID')
     PRIVATE_SUBNET_ID = os.environ.get('PRIVATE_SUBNET_ID')
     MAX_INFER = 25
     MAX_CLASSIFICATION = 18
-    MAX_PARALLEL = 25
-    MAX_PARALLEL_2 = 8
-    MAX_DEFAULT = 8
-    MAX_STATS = 4
-    MAX_PIPELINE = 8
+    MAX_PARALLEL = 50 #25
+    MAX_PARALLEL_2 = 25 #8
+    MAX_DEFAULT = 32 #8
+    MAX_STATS = 8 # 4
+    MAX_PIPELINE = 32 #8
     MAX_LLAVA = 5
     MAX_SIMILARITY = 5
-    MAX_UTILITY = 15
-    MAX_UTILITY_2 = 50
-    MAX_INDIVIDUAL_ID = 25
+    MAX_UTILITY = 60 #15
+    MAX_UTILITY_2 = 100 #50 
+    MAX_INDIVIDUAL_ID = 75 #25
     DNS = os.environ.get('DNS')
 
     # Species Classification Config
@@ -340,16 +343,16 @@ class Config(object):
     SETUP_PERIOD = {
         'celery': '300',
         'classification': '300',
-        'parallel': '300',
-        'parallel_2': '300',
-        'default': '300',
-        'statistics': '300',
-        'pipeline': '300',
+        'parallel': '180',
+        'parallel_2': '180',
+        'default': '180',
+        'statistics': '180',
+        'pipeline': '180',
         'llava': '1500',
         'similarity': '300',
-        'utility': '300',
-        'utility_2': '300',
-        'individual_id': '300'
+        'utility': '180',
+        'utility_2': '180',
+        'individual_id': '180'
     }
 
     #Aurora DB stuff
@@ -361,7 +364,7 @@ class Config(object):
     IDLE_MULTIPLIER = {
         'celery': 12,
         'classification': 12,
-        'parallel': 24,
+        'parallel': 12,
         'parallel_2': 12,
         'default': 12,
         'statistics': 12,
@@ -394,8 +397,9 @@ class Config(object):
             'ami': PARALLEL_AMI,
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_PARALLEL,
-            'launch_delay': 180,
-            'rate': 4, #2695
+            'launch_delay': 300,
+            'rate': 1, #2695
+            'launch_step': 8,
             'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
@@ -433,7 +437,8 @@ class Config(object):
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
                 os.environ.get('WBIA_DIR') + "' '" +
-                os.environ.get('DEBUGGING') + "'" +
+                os.environ.get('DEBUGGING') + "' '" +
+                str(CPU_WORKERS) + "'" +
                 ' -l info'
         },
         'parallel_2': {
@@ -441,8 +446,9 @@ class Config(object):
             'ami': PARALLEL_AMI,
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_PARALLEL_2,
-            'launch_delay': 180,
-            'rate': 4, #2695
+            'launch_delay': 300,
+            'rate': 1, #2695
+            'launch_step': 8,
             'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
@@ -480,7 +486,8 @@ class Config(object):
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
                 os.environ.get('WBIA_DIR') + "' '" +
-                os.environ.get('DEBUGGING') + "'" +
+                os.environ.get('DEBUGGING') + "' '" +
+                str(CPU_WORKERS) + "'" +
                 ' -l info'
         },
         'default': {
@@ -488,8 +495,9 @@ class Config(object):
             'ami': PARALLEL_AMI,
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_DEFAULT,
-            'launch_delay': 120,
-            'rate': 4,
+            'launch_delay': 300,
+            'rate': 1,
+            'launch_step': 4,
             'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
@@ -527,16 +535,18 @@ class Config(object):
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
                 os.environ.get('WBIA_DIR') + "' '" +
-                os.environ.get('DEBUGGING') + "'" +
+                os.environ.get('DEBUGGING') + "' '" +
+                str(CPU_WORKERS) + "'" +
                 ' -l info'
         },
         'statistics': {
             'type': 'CPU',
-            'ami': PARALLEL_AMI,
+            'ami': STATISTICS_AMI,
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_STATS,
-            'launch_delay': 120,
-            'rate': 4,
+            'launch_delay': 300,
+            'rate': 1,
+            'launch_step': 2,
             'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
@@ -559,7 +569,7 @@ class Config(object):
                 SG_ID + "' '" + 
                 PUBLIC_SUBNET_ID + "' '" + 
                 TOKEN + "' '" + 
-                PARALLEL_AMI + "' '" + 
+                STATISTICS_AMI + "' '" + 
                 KEY_NAME + "' '" + 
                 SETUP_PERIOD['statistics'] + "' '" + 
                 'IDLE_MULTIPLIER' + "' '" + 
@@ -570,12 +580,13 @@ class Config(object):
                 IAM_ADMIN_GROUP + "' '" + 
                 PRIVATE_SUBNET_ID + "' '" + 
                 os.environ.get('AWS_S3_DOWNLOAD_ACCESS_KEY_ID') + "' '" + 
-                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "'" + 
+                os.environ.get('AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY') + "' '" +
+                str(CPU_WORKERS) + "'" +
                 ' -l info'
         },
         'celery': {
             'type': 'GPU',
-            'ami': PARALLEL_AMI,
+            'ami': GPU_AMI,
             'instances': GPU_INSTANCE_TYPES,
             'max_instances': MAX_INFER,
             'launch_delay': 600,
@@ -603,8 +614,9 @@ class Config(object):
             'ami': PARALLEL_AMI,
             'instances': PIPELINE_INSTANCE_TYPES,
             'max_instances': MAX_PIPELINE,
-            'launch_delay': 120,
-            'rate': 4,
+            'launch_delay': 300,
+            'rate': 1,
+            'launch_step': 10,
             'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
@@ -642,7 +654,8 @@ class Config(object):
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
                 os.environ.get('WBIA_DIR') + "' '" +
-                os.environ.get('DEBUGGING') + "'" + 
+                os.environ.get('DEBUGGING') + "' '" +
+                str(CPU_WORKERS) + "'" +
                 ' -l info'
         },
         'llava': {
@@ -669,7 +682,7 @@ class Config(object):
         },
         'similarity': {
             'type': 'GPU',
-            'ami': PARALLEL_AMI,
+            'ami': GPU_AMI,
             'instances': GPU_INSTANCE_TYPES,
             'max_instances': MAX_SIMILARITY,
             'launch_delay': 600,
@@ -697,8 +710,9 @@ class Config(object):
             'ami': PARALLEL_AMI,
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_UTILITY,
-            'launch_delay': 120,
-            'rate': 4,
+            'launch_delay': 300,
+            'rate': 1,
+            'launch_step': 10,
             'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
@@ -736,7 +750,8 @@ class Config(object):
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
                 os.environ.get('WBIA_DIR') + "' '" +
-                os.environ.get('DEBUGGING') + "'" +
+                os.environ.get('DEBUGGING') + "' '" +
+                str(CPU_WORKERS) + "'" +
                 ' -l info'
         },
         'utility_2': {
@@ -744,8 +759,9 @@ class Config(object):
             'ami': PARALLEL_AMI,
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_UTILITY_2,
-            'launch_delay': 180,
-            'rate': 4, #2695
+            'launch_delay': 300,
+            'rate': 1, #2695
+            'launch_step': 16,
             'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
@@ -783,7 +799,8 @@ class Config(object):
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
                 os.environ.get('WBIA_DIR') + "' '" +
-                os.environ.get('DEBUGGING') + "'" +
+                os.environ.get('DEBUGGING') + "' '" +
+                str(CPU_WORKERS) + "'" +
                 ' -l info'
         },
         'individual_id': {
@@ -791,8 +808,9 @@ class Config(object):
             'ami': PARALLEL_AMI,
             'instances': CPU_INSTANCE_TYPES,
             'max_instances': MAX_INDIVIDUAL_ID,
-            'launch_delay': 180,
-            'rate': 4, #2695
+            'launch_delay': 300,
+            'rate': 1, #2695
+            'launch_step': 10,
             'queue_type': 'rate',
             'repo': os.environ.get('MAIN_GIT_REPO'),
             'branch': BRANCH,
@@ -830,7 +848,8 @@ class Config(object):
                 os.environ.get('WBIA_DB_NAME') + "' '" +
                 os.environ.get('WBIA_DB_SERVER') + "' '" +
                 os.environ.get('WBIA_DIR') + "' '" +
-                os.environ.get('DEBUGGING') + "'" +
+                os.environ.get('DEBUGGING') + "' '" +
+                str(CPU_WORKERS) + "'" +
                 ' -l info'
         },
         # 'classification': {

@@ -1058,7 +1058,7 @@ def generate_wildbook_export(self,task_id, data, user_name, download_request_id)
             shutil.rmtree(tempFolderName)
 
         # Schedule deletion
-        # deleteFile.apply_async(kwargs={'fileName': fileName+'.zip'}, countdown=3600)
+        # deleteFile.apply_async(kwargs={'fileName': fileName+'.zip'}, countdown=3600, queue='short')
 
         download_request = db.session.query(DownloadRequest).get(download_request_id)
         if download_request:
@@ -1427,7 +1427,7 @@ def generate_excel(self,task_id,user_name,download_id):
             GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
 
         # Schedule deletion
-        # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+        # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600, queue='short')
 
         download_request = db.session.query(DownloadRequest).get(download_id)
         if download_request:
@@ -2200,7 +2200,7 @@ def generate_coco(self,task_id,user_name,download_id):
             GLOBALS.s3client.put_object(Bucket=Config.BUCKET,Key=fileName,Body=temp_file)
 
         # Schedule deletion
-        # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+        # deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600, queue='short')
 
         download_request = db.session.query(DownloadRequest).get(download_id)
         if download_request:
@@ -2912,7 +2912,7 @@ def clean_up_R_results(self,R_type, folder, user_name):
             for file in files:
                 fileName = s3Folder + '/' + file
                 if fileName not in scheduled_files:
-                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600)
+                    deleteFile.apply_async(kwargs={'fileName': fileName}, countdown=3600, queue='short')
 
     except:
         pass

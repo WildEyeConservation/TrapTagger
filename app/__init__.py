@@ -90,6 +90,7 @@ def make_celery(flask_app):
         Queue('utility',     routing_key='utility.#'),
         Queue('utility_2',     routing_key='utility_2.#'),
         Queue('individual_id',     routing_key='individual_id.#'),
+        Queue('short',     routing_key='short.#'),
     ]
 
     if not Config.INITIAL_SETUP:
@@ -232,7 +233,7 @@ def initialise_periodic_functions(sender, instance, **kwargs):
         allQueues.extend([queue for queue in Config.QUEUES if queue not in allQueues])
         allQueues.extend([r[0] for r in db.session.query(Classifier.queue).filter(Classifier.queue!=None).distinct().all()])
         for queue in allQueues:
-            if queue not in ['default','ram_intensive']:
+            if queue not in ['default','ram_intensive','short']:
                 while True:
                     task = GLOBALS.redisClient.blpop(queue, timeout=1)
                     if not task:
@@ -240,8 +241,8 @@ def initialise_periodic_functions(sender, instance, **kwargs):
 
         print('Queues flushed.')
 
-        # importMonitor.apply_async(queue='priority', priority=0)
-        # manageTasks.apply_async(queue='priority', priority=0)
+        # .apply_async(queue='priority', priority=0)
+        # manageTasks.aimportMonitorpply_async(queue='priority', priority=0)
         # clean_up_redis.apply_async(queue='priority', priority=0)
         # monitor_live_data_surveys.apply_async(queue='priority', priority=0)
         # manageDownloadRequests.apply_async(queue='priority', priority=0)

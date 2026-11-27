@@ -86,6 +86,8 @@ services:
             - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
             - TOKEN=${TOKEN}
             - PARALLEL_AMI=${PARALLEL_AMI}
+            - STATISTICS_AMI=${STATISTICS_AMI}
+            - GPU_AMI=${GPU_AMI}
             - KEY_NAME=${KEY_NAME}
             - QUEUE=${QUEUE}
             - WORKER_NAME=${WORKER_NAME}
@@ -148,6 +150,8 @@ services:
             - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
             - TOKEN=${TOKEN}
             - PARALLEL_AMI=${PARALLEL_AMI}
+            - STATISTICS_AMI=${STATISTICS_AMI}
+            - GPU_AMI=${GPU_AMI}
             - KEY_NAME=${KEY_NAME}
             - QUEUE=${QUEUE}
             - WORKER_NAME=${WORKER_NAME}
@@ -210,6 +214,8 @@ services:
             - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
             - TOKEN=${TOKEN}
             - PARALLEL_AMI=${PARALLEL_AMI}
+            - STATISTICS_AMI=${STATISTICS_AMI}
+            - GPU_AMI=${GPU_AMI}
             - KEY_NAME=${KEY_NAME}
             - QUEUE=${QUEUE}
             - WORKER_NAME=${WORKER_NAME}
@@ -270,6 +276,8 @@ services:
             - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
             - TOKEN=${TOKEN}
             - PARALLEL_AMI=${PARALLEL_AMI}
+            - STATISTICS_AMI=${STATISTICS_AMI}
+            - GPU_AMI=${GPU_AMI}
             - KEY_NAME=${KEY_NAME}
             - QUEUE=${QUEUE}
             - WORKER_NAME=${WORKER_NAME}
@@ -296,7 +304,7 @@ services:
             - my-network
 
     ram_worker:
-        # worker that takes advantage of the greater amount of RAM on the server
+        # worker that takes advantage of the greater amount of RAM on the server (also a fallback for short tasks)
         restart: always
         build:
             context: ./
@@ -326,6 +334,8 @@ services:
             - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
             - TOKEN=${TOKEN}
             - PARALLEL_AMI=${PARALLEL_AMI}
+            - STATISTICS_AMI=${STATISTICS_AMI}
+            - GPU_AMI=${GPU_AMI}
             - KEY_NAME=${KEY_NAME}
             - QUEUE=${QUEUE}
             - WORKER_NAME=${WORKER_NAME}
@@ -347,7 +357,7 @@ services:
             - LAMBDA_SUBNET_ID=${LAMBDA_SUBNET_ID}
             - AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
             - DEBUGGING=${DEBUGGING}
-        command: nice -10 celery -A app.celery worker -E -n ram_worker -Q ram_intensive -Ofair --concurrency=1 --loglevel=info
+        command: nice -10 celery -A app.celery worker -E -n ram_worker -Q ram_intensive,short -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
 
@@ -382,6 +392,8 @@ services:
             - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
             - TOKEN=${TOKEN}
             - PARALLEL_AMI=${PARALLEL_AMI}
+            - STATISTICS_AMI=${STATISTICS_AMI}
+            - GPU_AMI=${GPU_AMI}
             - KEY_NAME=${KEY_NAME}
             - QUEUE=${QUEUE}
             - WORKER_NAME=${WORKER_NAME}
@@ -404,6 +416,64 @@ services:
             - AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
             - DEBUGGING=${DEBUGGING}
         command: nice -10 celery -A app.celery worker -E -n traptagger_worker1 -Q default -Ofair --concurrency=1 --loglevel=info
+        networks:
+            - my-network
+
+    short_worker:
+        # local CPU worker that handles short tasks
+        restart: always
+        build:
+            context: ./
+            dockerfile: Dockerfile.flask
+        image: traptagger:1.1.3
+        container_name: short_worker
+        volumes:
+            - ./:/code/
+            - ./wildbook-ia/wbia:/code/wbia
+        environment:
+            - PYTHONPATH=/code
+            - FLASK_APP=/code/TrapTagger.py
+            - REDIS_IP=traptagger_redis
+            - DATABASE_NAME=${DATABASE_NAME}
+            - HOST_IP=${HOST_IP}
+            - DNS=${DNS}
+            - DATABASE_SERVER=${DATABASE_SERVER}
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - REGION_NAME=${REGION_NAME}
+            - SECRET_KEY=${SECRET_KEY}
+            - MAIL_USERNAME=${MAIL_USERNAME}
+            - MAIL_PASSWORD=${MAIL_PASSWORD}
+            - BRANCH=${BRANCH}
+            - SG_ID=${SG_ID}
+            - PUBLIC_SUBNET_ID=${PUBLIC_SUBNET_ID}
+            - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
+            - TOKEN=${TOKEN}
+            - PARALLEL_AMI=${PARALLEL_AMI}
+            - STATISTICS_AMI=${STATISTICS_AMI}
+            - GPU_AMI=${GPU_AMI}
+            - KEY_NAME=${KEY_NAME}
+            - QUEUE=${QUEUE}
+            - WORKER_NAME=${WORKER_NAME}
+            - MAIN_GIT_REPO=${MAIN_GIT_REPO}
+            - MONITORED_EMAIL_ADDRESS=${MONITORED_EMAIL_ADDRESS}
+            - BUCKET=${BUCKET}
+            - DB_CLUSTER_NAME=${DB_CLUSTER_NAME}
+            - IAM_ADMIN_GROUP=${IAM_ADMIN_GROUP}
+            - AWS_S3_DOWNLOAD_ACCESS_KEY_ID=${AWS_S3_DOWNLOAD_ACCESS_KEY_ID}
+            - AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY=${AWS_S3_DOWNLOAD_SECRET_ACCESS_KEY}
+            - AWS_S3_UPLOAD_ACCESS_KEY_ID=${AWS_S3_UPLOAD_ACCESS_KEY_ID}
+            - AWS_S3_UPLOAD_SECRET_ACCESS_KEY=${AWS_S3_UPLOAD_SECRET_ACCESS_KEY}
+            - MONKEY_PATCH=false
+            - LLAVA_AMI=${LLAVA_AMI}
+            - WBIA_DB_SERVER=${WBIA_DB_SERVER}
+            - WBIA_DB_NAME=${WBIA_DB_NAME}
+            - WBIA_DIR=${WBIA_DIR}
+            - INITIALISE_IBS=false
+            - LAMBDA_SUBNET_ID=${LAMBDA_SUBNET_ID}
+            - AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
+            - DEBUGGING=${DEBUGGING}
+        command: nice -10 celery -A app.celery worker -E -n short_worker -Q short -Ofair --concurrency=1 --loglevel=info
         networks:
             - my-network
 
@@ -438,6 +508,8 @@ services:
     #         - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
     #         - TOKEN=${TOKEN}
     #         - PARALLEL_AMI=${PARALLEL_AMI}
+    #         - STATISTICS_AMI=${STATISTICS_AMI}
+    #         - GPU_AMI=${GPU_AMI}
     #         - KEY_NAME=${KEY_NAME}
     #         - QUEUE=${QUEUE}
     #         - WORKER_NAME=${WORKER_NAME}
@@ -486,6 +558,8 @@ services:
     #         - PRIVATE_SUBNET_ID=${PRIVATE_SUBNET_ID}
     #         - TOKEN=${TOKEN}
     #         - PARALLEL_AMI=${PARALLEL_AMI}
+    #         - STATISTICS_AMI=${STATISTICS_AMI}
+    #         - GPU_AMI=${GPU_AMI}
     #         - KEY_NAME=${KEY_NAME}
     #         - QUEUE=${QUEUE}
     #         - WORKER_NAME=${WORKER_NAME}

@@ -76,7 +76,7 @@ app.logger.info('Active tasks revoked. Flushing queues...')
 
 # Flush all other (non-default) queues
 for queue in allQueues:
-    if queue not in ['default','ram_intensive','priority_worker']:
+    if queue not in ['default','ram_intensive','priority_worker','short']:
         while True:
             task = GLOBALS.redisClient.blpop(queue, timeout=1)
             if not task:
@@ -98,6 +98,8 @@ for active_task in active_tasks:
     # priority = active_task['delivery_info']['priority']
     if 'ram_worker' in active_task['hostname']:
         queue = 'ram_intensive'
+    elif 'short_worker' in active_task['hostname']:
+        queue = 'short'
     elif 'priority_worker' in active_task['hostname']:
         queue = 'priority'
     else:
