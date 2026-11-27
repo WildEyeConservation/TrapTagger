@@ -569,7 +569,7 @@ class Config(object):
                 SG_ID + "' '" + 
                 PUBLIC_SUBNET_ID + "' '" + 
                 TOKEN + "' '" + 
-                STATISTICS_AMI + "' '" + 
+                PARALLEL_AMI + "' '" + 
                 KEY_NAME + "' '" + 
                 SETUP_PERIOD['statistics'] + "' '" + 
                 'IDLE_MULTIPLIER' + "' '" + 
