@@ -601,6 +601,8 @@ function checkLabels(editing) {
     var selfParent = false
     var descriptionSlash = false
     var hotkeySlash = false
+    var parentChildConflict = false
+    parentOf = {}
 
     var dict = {};
     dict['none'] = []
@@ -659,6 +661,11 @@ function checkLabels(editing) {
             selfParent=true
         }
 
+        description = allDescriptions[n].value.toLowerCase().trim()
+        if (description != '') {
+            parentOf[description] = parent.trim()
+        }
+
         if ((!hotkey.match(/^[0-9a-z]$/))&&(hotkey!=' ')) {
             if ((hotkey == '') && (allDescriptions[n].value == '')) {
                 //pass
@@ -692,6 +699,22 @@ function checkLabels(editing) {
             }
         }        
     }
+
+
+    var conflictLabels = []
+    var labelNames = Object.keys(parentOf)
+    for (let i = 0; i < labelNames.length; i++) {
+        var label = labelNames[i]
+        var parentName = parentOf[label]
+        if ((parentName in parentOf) && (parentOf[parentName] == label) && (parentName != label)) {
+            parentChildConflict = true
+            var pair = [label, parentName].sort().join(' / ')
+            if (!conflictLabels.includes(pair)) {
+                conflictLabels.push(pair)
+            }
+        }
+    }
+
 
     // Print
     if (editing) {
@@ -778,7 +801,13 @@ function checkLabels(editing) {
         labelErrors.appendChild(newdiv)
     }
 
-    if ((!hotkeySlash)&&(!descriptionSlash)&&(!selfParent)&&(!emptyDescription)&&(!emptyHotkey)&&(Object.keys(duplicateKeys).length==0)&&(duplicateDescriptions.length==0)&&(globalHotkeysUsed.length==0)&&(globalDescriptionsUsed.length==0)) {
+    if (parentChildConflict) {
+        newdiv = document.createElement('div')
+        newdiv.innerHTML = 'A label cannot be a parent of its own parent: ' + conflictLabels.join(', ')
+        labelErrors.appendChild(newdiv)
+    }
+
+    if ((!hotkeySlash)&&(!descriptionSlash)&&(!selfParent)&&(!emptyDescription)&&(!emptyHotkey)&&(!parentChildConflict)&&(Object.keys(duplicateKeys).length==0)&&(duplicateDescriptions.length==0)&&(globalHotkeysUsed.length==0)&&(globalDescriptionsUsed.length==0)) {
         legalLabels = true
     } else {
         legalLabels = false

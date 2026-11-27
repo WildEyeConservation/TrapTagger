@@ -311,98 +311,178 @@ def fetch_clusters(taggingLevel,task_id,isBounding,trapgroup_id,limit=None,id=No
         allocatedIndSims = [int(r.decode()) for r in GLOBALS.redisClient.smembers('active_indsims_'+str(task_id))]
 
         # Find indviduals (joined on left side of similarity) with work available
-        sq1 = db.session.query(Individual.id.label('indID1'))\
-                        .join(Task,Individual.tasks)\
-                        .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
-                        .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
-                        .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
-                        .filter(OtherIndividual.c.active==True)\
-                        .filter(OtherIndividual.c.name!='unidentifiable')\
-                        .filter(OtherIndividual.c.species==species)\
-                        .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
-                        .filter(~IndSimilarity.id.in_(allocatedIndSims))\
-                        .filter(IndSimilarity.score>=tL[2])\
-                        .filter(IndSimilarity.skipped==False)\
-                        .filter(Task.id.in_(task_ids))\
-                        .filter(Individual.species==species)\
-                        .filter(Individual.active==True)\
-                        .filter(Individual.name!='unidentifiable')\
-                        .group_by(Individual.id)\
-                        .subquery()
+        # sq1 = db.session.query(Individual.id.label('indID1'))\
+        #                 .join(Task,Individual.tasks)\
+        #                 .join(IndSimilarity,IndSimilarity.individual_1==Individual.id)\
+        #                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_2)\
+        #                 .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
+        #                 .filter(OtherIndividual.c.active==True)\
+        #                 .filter(OtherIndividual.c.name!='unidentifiable')\
+        #                 .filter(OtherIndividual.c.species==species)\
+        #                 .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
+        #                 .filter(~IndSimilarity.id.in_(allocatedIndSims))\
+        #                 .filter(IndSimilarity.score>=tL[2])\
+        #                 .filter(IndSimilarity.skipped==False)\
+        #                 .filter(Task.id.in_(task_ids))\
+        #                 .filter(Individual.species==species)\
+        #                 .filter(Individual.active==True)\
+        #                 .filter(Individual.name!='unidentifiable')\
+        #                 .group_by(Individual.id)\
+        #                 .subquery()
         
-        # Find indviduals (joined on right side of similarity) with work available
-        sq2 = db.session.query(Individual.id.label('indID2'))\
-                        .join(Task,Individual.tasks)\
-                        .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
-                        .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
-                        .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
-                        .filter(OtherIndividual.c.active==True)\
-                        .filter(OtherIndividual.c.name!='unidentifiable')\
-                        .filter(OtherIndividual.c.species==species)\
-                        .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
-                        .filter(~IndSimilarity.id.in_(allocatedIndSims))\
-                        .filter(IndSimilarity.score>=tL[2])\
-                        .filter(IndSimilarity.skipped==False)\
-                        .filter(Task.id.in_(task_ids))\
-                        .filter(Individual.species==species)\
-                        .filter(Individual.active==True)\
-                        .filter(Individual.name!='unidentifiable')\
-                        .group_by(Individual.id)\
-                        .subquery()
+        # # Find indviduals (joined on right side of similarity) with work available
+        # sq2 = db.session.query(Individual.id.label('indID2'))\
+        #                 .join(Task,Individual.tasks)\
+        #                 .join(IndSimilarity,IndSimilarity.individual_2==Individual.id)\
+        #                 .join(OtherIndividual,OtherIndividual.c.id==IndSimilarity.individual_1)\
+        #                 .join(OtherIndividualTasks,OtherIndividualTasks.c.individual_id==OtherIndividual.c.id)\
+        #                 .filter(OtherIndividual.c.active==True)\
+        #                 .filter(OtherIndividual.c.name!='unidentifiable')\
+        #                 .filter(OtherIndividual.c.species==species)\
+        #                 .filter(OtherIndividualTasks.c.task_id.in_(task_ids))\
+        #                 .filter(~IndSimilarity.id.in_(allocatedIndSims))\
+        #                 .filter(IndSimilarity.score>=tL[2])\
+        #                 .filter(IndSimilarity.skipped==False)\
+        #                 .filter(Task.id.in_(task_ids))\
+        #                 .filter(Individual.species==species)\
+        #                 .filter(Individual.active==True)\
+        #                 .filter(Individual.name!='unidentifiable')\
+        #                 .group_by(Individual.id)\
+        #                 .subquery()
         
-        # Find the number of detections per individual for ordering purposes
-        sq3 = db.session.query(Individual.id.label('indID3'),func.count(distinct(Detection.id)).label('count3'))\
-                        .join(Task,Individual.tasks)\
-                        .join(Detection,Individual.detections)\
-                        .filter(Task.id.in_(task_ids))\
-                        .filter(Individual.species==species)\
-                        .filter(Individual.active==True)\
-                        .filter(Individual.name!='unidentifiable')\
-                        .group_by(Individual.id)\
-                        .subquery()
+        # # Find the number of detections per individual for ordering purposes
+        # sq3 = db.session.query(Individual.id.label('indID3'),func.count(distinct(Detection.id)).label('count3'))\
+        #                 .join(Task,Individual.tasks)\
+        #                 .join(Detection,Individual.detections)\
+        #                 .filter(Task.id.in_(task_ids))\
+        #                 .filter(Individual.species==species)\
+        #                 .filter(Individual.active==True)\
+        #                 .filter(Individual.name!='unidentifiable')\
+        #                 .group_by(Individual.id)\
+        #                 .subquery()
 
-        # Find the available individual with the most detections
-        clusters = db.session.query(
-                            Individual,
-                            Individual.id,
-                            Individual.notes,
-                            Image.id,
-                            Image.filename,
-                            Image.corrected_timestamp,
-                            Image.detection_rating,
-                            Detection.id,
-                            Detection.top,
-                            Detection.bottom,
-                            Detection.left,
-                            Detection.right,
-                            Detection.category,
-                            Detection.static,
-                            Camera.path,
-                            Camera.id,
-                            Trapgroup.latitude,
-                            Trapgroup.longitude,
-                            Detection.flank
-                        )\
-                        .join(Task,Individual.tasks)\
-                        .outerjoin(sq1,sq1.c.indID1==Individual.id)\
-                        .outerjoin(sq2,sq2.c.indID2==Individual.id)\
-                        .join(sq3,sq3.c.indID3==Individual.id)\
-                        .join(Detection,Individual.detections)\
-                        .join(Image)\
-                        .join(Camera)\
-                        .join(Trapgroup)\
-                        .filter(Task.id.in_(task_ids))\
-                        .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
-                        .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
-                        .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
-                        .filter(Detection.static==False)\
-                        .order_by(desc(sq3.c.count3)).all()
+        # # Find the available individual with the most detections
+        # clusters = db.session.query(
+        #                     Individual,
+        #                     Individual.id,
+        #                     Individual.notes,
+        #                     Image.id,
+        #                     Image.filename,
+        #                     Image.corrected_timestamp,
+        #                     Image.detection_rating,
+        #                     Detection.id,
+        #                     Detection.top,
+        #                     Detection.bottom,
+        #                     Detection.left,
+        #                     Detection.right,
+        #                     Detection.category,
+        #                     Detection.static,
+        #                     Camera.path,
+        #                     Camera.id,
+        #                     Trapgroup.latitude,
+        #                     Trapgroup.longitude,
+        #                     Detection.flank
+        #                 )\
+        #                 .join(Task,Individual.tasks)\
+        #                 .outerjoin(sq1,sq1.c.indID1==Individual.id)\
+        #                 .outerjoin(sq2,sq2.c.indID2==Individual.id)\
+        #                 .join(sq3,sq3.c.indID3==Individual.id)\
+        #                 .join(Detection,Individual.detections)\
+        #                 .join(Image)\
+        #                 .join(Camera)\
+        #                 .join(Trapgroup)\
+        #                 .filter(Task.id.in_(task_ids))\
+        #                 .filter(or_(sq1.c.indID1!=None, sq2.c.indID2!=None))\
+        #                 .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+        #                 .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+        #                 .filter(Detection.static==False)\
+        #                 .order_by(desc(sq3.c.count3)).all()
 
-        for row in clusters:
-            # sadd returns 1 if the item was added to the set, 0 if it was already in the set
-            if GLOBALS.redisClient.sadd('active_individuals_'+str(task_id),row[1]):
-                individuals.append(row[0])
+        # for row in clusters:
+        #     # sadd returns 1 if the item was added to the set, 0 if it was already in the set
+        #     if GLOBALS.redisClient.sadd('active_individuals_'+str(task_id),row[1]):
+        #         individuals.append(row[0])
+        #         break
+
+        score_thresh = tL[2]
+        eligible = db.session.query(Individual.id.label('id'))\
+            .join(individualTasks, individualTasks.c.individual_id == Individual.id)\
+            .filter(individualTasks.c.task_id.in_(task_ids))\
+            .filter(Individual.species == species)\
+            .filter(Individual.active == True)\
+            .filter(Individual.name != 'unidentifiable')\
+            .subquery()
+
+        other = alias(eligible)
+        sim = db.session.query(IndSimilarity.individual_1.label('ind_id'))\
+            .join(eligible, eligible.c.id == IndSimilarity.individual_1)\
+            .join(other, other.c.id == IndSimilarity.individual_2)\
+            .filter(IndSimilarity.score >= score_thresh)\
+            .filter(IndSimilarity.skipped == False)
+        if allocatedIndSims:
+            sim = sim.filter(~IndSimilarity.id.in_(allocatedIndSims))
+
+        sim2 = db.session.query(IndSimilarity.individual_2.label('ind_id'))\
+            .join(eligible, eligible.c.id == IndSimilarity.individual_2)\
+            .join(other, other.c.id == IndSimilarity.individual_1)\
+            .filter(IndSimilarity.score >= score_thresh)\
+            .filter(IndSimilarity.skipped == False)
+        if allocatedIndSims:
+            sim2 = sim2.filter(~IndSimilarity.id.in_(allocatedIndSims))
+
+        candidate_ids = sim.union(sim2).subquery()
+
+        ranked = db.session.query(
+                candidate_ids.c.ind_id,
+                func.count(distinct(Detection.id)).label('n'),
+            )\
+            .join(individualDetections, individualDetections.c.individual_id == candidate_ids.c.ind_id)\
+            .join(Detection, Detection.id == individualDetections.c.detection_id)\
+            .filter(Detection.static == False)\
+            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+            .filter(or_(and_(Detection.source == model, Detection.score > Config.DETECTOR_THRESHOLDS[model])for model in Config.DETECTOR_THRESHOLDS))\
+            .group_by(candidate_ids.c.ind_id)\
+            .order_by(desc('n'))\
+            .all()
+        
+        chosen = None
+        for ind_id, _n in ranked:
+            if GLOBALS.redisClient.sadd('active_individuals_' + str(task_id), ind_id):
+                chosen = db.session.query(Individual).get(ind_id)
                 break
+        if chosen:
+            clusters = db.session.query(
+                                Individual,
+                                Individual.id,
+                                Individual.notes,
+                                Image.id,
+                                Image.filename,
+                                Image.corrected_timestamp,
+                                Image.detection_rating,
+                                Detection.id,
+                                Detection.top,
+                                Detection.bottom,
+                                Detection.left,
+                                Detection.right,
+                                Detection.category,
+                                Detection.static,
+                                Camera.path,
+                                Camera.id,
+                                Trapgroup.latitude,
+                                Trapgroup.longitude,
+                                Detection.flank
+                            )\
+                            .join(Detection,Individual.detections)\
+                            .join(Image)\
+                            .join(Camera)\
+                            .join(Trapgroup)\
+                            .filter(Individual.id==chosen.id)\
+                            .filter(or_(and_(Detection.source==model,Detection.score>Config.DETECTOR_THRESHOLDS[model]) for model in Config.DETECTOR_THRESHOLDS))\
+                            .filter(~Detection.status.in_(Config.DET_IGNORE_STATUSES))\
+                            .filter(Detection.static==False)\
+                            .distinct().all()
+            if clusters:
+                individuals = [chosen]
 
         if individuals: 
             image_sq = db.session.query(Image.id)\
